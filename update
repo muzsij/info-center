@@ -2,10 +2,10 @@
 
 cd ..
 
-if [ -d claude-usage-extension ]; then
-	rm -rf ~/.local/share/gnome-shell/extensions/claude-code-usage@haletran.com
-	cp -r claude-usage-extension ~/.local/share/gnome-shell/extensions/claude-code-usage@haletran.com 
-	cd ~/.local/share/gnome-shell/extensions/claude-code-usage@haletran.com/schemas
+if [ -d info-center ]; then
+	rm -rf ~/.local/share/gnome-shell/extensions/info-center@muzsij
+	cp -r info-center ~/.local/share/gnome-shell/extensions/info-center@muzsij
+	cd ~/.local/share/gnome-shell/extensions/info-center@muzsij/schemas
 	glib-compile-schemas .
 	gnome-session-quit --no-prompt
 else

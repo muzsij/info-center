@@ -13,10 +13,10 @@ import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/ex
 
 const API_URL = 'https://api.anthropic.com/api/oauth/usage';
 
-const ClaudeUsageIndicator = GObject.registerClass(
-class ClaudeUsageIndicator extends PanelMenu.Button {
+const InfoCenterIndicator = GObject.registerClass(
+class InfoCenterIndicator extends PanelMenu.Button {
     _init(extensionPath, settings, openPreferences) {
-        super._init(0.0, 'Claude Usage Indicator');
+        super._init(0.0, 'Info Center Indicator');
 
         this._extensionPath = extensionPath;
         this._settings = settings;
@@ -27,21 +27,21 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             style_class: 'panel-status-menu-box',
         });
 
-        const iconPath = GLib.build_filenamev([this._extensionPath, 'claude-icon-22.png']);
+        const iconPath = GLib.build_filenamev([this._extensionPath, 'info-center-icon-22.png']);
         const gicon = Gio.icon_new_for_string(iconPath);
         this._icon = new St.Icon({
             gicon: gicon,
-            style_class: 'claude-icon',
+            style_class: 'info-center-icon',
             icon_size: 16,
         });
         this._box.add_child(this._icon);
 
         this._panelProgressBg = new St.Widget({
-            style_class: 'claude-panel-progress-bg',
+            style_class: 'info-center-panel-progress-bg',
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._panelProgressBar = new St.Widget({
-            style_class: 'claude-panel-progress-bar',
+            style_class: 'info-center-panel-progress-bar',
         });
         this._panelProgressBg.add_child(this._panelProgressBar);
         this._box.add_child(this._panelProgressBg);
@@ -49,7 +49,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         this._label = new St.Label({
             text: '...',
             y_align: Clutter.ActorAlign.CENTER,
-            style_class: 'claude-usage-label',
+            style_class: 'info-center-usage-label',
         });
         this._box.add_child(this._label);
 
@@ -143,18 +143,18 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
 
     _createMenu() {
         const fiveHourBox = new St.BoxLayout({
-            style_class: 'claude-usage-section',
+            style_class: 'info-center-usage-section',
             vertical: true,
         });
         const fiveHourHeader = new St.BoxLayout({ vertical: false });
         const fiveHourLabel = new St.Label({
             text: '5-Hour Usage',
-            style_class: 'claude-section-title',
+            style_class: 'info-center-section-title',
         });
         fiveHourHeader.add_child(fiveHourLabel);
         this._fiveHourPercent = new St.Label({
             text: '...',
-            style_class: 'claude-percent-label',
+            style_class: 'info-center-percent-label',
             x_expand: true,
             x_align: Clutter.ActorAlign.END,
         });
@@ -162,17 +162,17 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         fiveHourBox.add_child(fiveHourHeader);
 
         const fiveHourProgressBg = new St.Widget({
-            style_class: 'claude-progress-bg',
+            style_class: 'info-center-progress-bg',
         });
         this._fiveHourProgressBar = new St.Widget({
-            style_class: 'claude-progress-bar usage-low',
+            style_class: 'info-center-progress-bar usage-low',
         });
         fiveHourProgressBg.add_child(this._fiveHourProgressBar);
         fiveHourBox.add_child(fiveHourProgressBg);
 
         this._fiveHourResetLabel = new St.Label({
             text: 'Resets: ...',
-            style_class: 'claude-reset-label',
+            style_class: 'info-center-reset-label',
         });
         fiveHourBox.add_child(this._fiveHourResetLabel);
 
@@ -186,18 +186,18 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         const sevenDayBox = new St.BoxLayout({
-            style_class: 'claude-usage-section',
+            style_class: 'info-center-usage-section',
             vertical: true,
         });
         const sevenDayHeader = new St.BoxLayout({ vertical: false });
         const sevenDayLabel = new St.Label({
             text: '7-Day Usage',
-            style_class: 'claude-section-title',
+            style_class: 'info-center-section-title',
         });
         sevenDayHeader.add_child(sevenDayLabel);
         this._sevenDayPercent = new St.Label({
             text: '...',
-            style_class: 'claude-percent-label',
+            style_class: 'info-center-percent-label',
             x_expand: true,
             x_align: Clutter.ActorAlign.END,
         });
@@ -205,17 +205,17 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         sevenDayBox.add_child(sevenDayHeader);
 
         const sevenDayProgressBg = new St.Widget({
-            style_class: 'claude-progress-bg',
+            style_class: 'info-center-progress-bg',
         });
         this._sevenDayProgressBar = new St.Widget({
-            style_class: 'claude-progress-bar usage-low',
+            style_class: 'info-center-progress-bar usage-low',
         });
         sevenDayProgressBg.add_child(this._sevenDayProgressBar);
         sevenDayBox.add_child(sevenDayProgressBg);
 
         this._sevenDayResetLabel = new St.Label({
             text: 'Resets: ...',
-            style_class: 'claude-reset-label',
+            style_class: 'info-center-reset-label',
         });
         sevenDayBox.add_child(this._sevenDayResetLabel);
 
@@ -284,7 +284,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
 
                 this._fetchUsage(token);
             } catch (e) {
-                console.error('Claude Usage: Failed to read credentials:', e.message);
+                console.error('Info Center: Failed to read credentials:', e.message);
                 this._label.set_text('No token');
                 this._fiveHourPercent.set_text('No credentials');
                 this._sevenDayPercent.set_text('—');
@@ -316,7 +316,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
 
                     this._updateDisplay(data);
                 } catch (e) {
-                    console.error('Claude Usage: Failed to fetch usage:', e.message);
+                    console.error('Info Center: Failed to fetch usage:', e.message);
                     this._label.set_text('Error');
                 }
             }
@@ -417,10 +417,10 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
     }
 });
 
-export default class ClaudeUsageExtension extends Extension {
+export default class InfoCenterExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
-        this._indicator = new ClaudeUsageIndicator(
+        this._indicator = new InfoCenterIndicator(
             this.path,
             this._settings,
             () => this.openPreferences()

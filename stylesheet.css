@@ -1,15 +1,15 @@
 /* Panel button styles */
-.claude-icon {
+.info-center-icon {
     margin-right: 6px;
 }
 
-.claude-usage-label {
+.info-center-usage-label {
     font-size: 12px;
     font-weight: bold;
 }
 
 /* Panel progress bar */
-.claude-panel-progress-bg {
+.info-center-panel-progress-bg {
     background-color: rgba(255, 255, 255, 0.2);
     border-radius: 3px;
     height: 10px;
@@ -17,7 +17,7 @@
     margin-left: 4px;
 }
 
-.claude-panel-progress-bar {
+.info-center-panel-progress-bar {
     height: 10px;
     border-radius: 3px;
     transition: width 300ms ease-out;
@@ -25,26 +25,26 @@
 }
 
 /* Usage section styles */
-.claude-usage-section {
+.info-center-usage-section {
     padding: 4px 0;
     spacing: 6px;
     min-width: 220px;
 }
 
-.claude-section-title {
+.info-center-section-title {
     font-size: 13px;
     font-weight: 600;
     color: #e0e0e0;
 }
 
-.claude-percent-label {
+.info-center-percent-label {
     font-size: 13px;
     font-weight: bold;
     color: #ffffff;
 }
 
 /* Progress bar styles */
-.claude-progress-bg {
+.info-center-progress-bg {
     background-color: rgba(255, 255, 255, 0.1);
     border-radius: 4px;
     height: 8px;
@@ -52,41 +52,41 @@
     margin: 4px 0;
 }
 
-.claude-progress-bar {
+.info-center-progress-bar {
     height: 8px;
     border-radius: 4px;
     transition: width 300ms ease-out;
 }
 
-.claude-progress-bar.usage-low {
+.info-center-progress-bar.usage-low {
     background-color: #22c55e;
 }
 
-.claude-progress-bar.usage-medium {
+.info-center-progress-bar.usage-medium {
     background-color: #eab308;
 }
 
-.claude-progress-bar.usage-high {
+.info-center-progress-bar.usage-high {
     background-color: #f97316;
 }
 
-.claude-progress-bar.usage-critical {
+.info-center-progress-bar.usage-critical {
     background-color: #ef4444;
 }
 
 /* Reset label styles */
-.claude-reset-label {
+.info-center-reset-label {
     font-size: 11px;
     color: #a0a0a0;
 }
 
 /* Footer styles */
-.claude-footer-box {
+.info-center-footer-box {
     padding: 6px 0;
     spacing: 12px;
 }
 
-.claude-refresh-button {
+.info-center-refresh-button {
     padding: 4px 12px;
     border-radius: 4px;
     background-color: rgba(255, 255, 255, 0.1);
@@ -94,15 +94,15 @@
     font-size: 12px;
 }
 
-.claude-refresh-button:hover {
+.info-center-refresh-button:hover {
     background-color: rgba(255, 255, 255, 0.2);
 }
 
-.claude-refresh-button:active {
+.info-center-refresh-button:active {
     background-color: rgba(255, 255, 255, 0.15);
 }
 
-.claude-last-updated-label {
+.info-center-last-updated-label {
     font-size: 10px;
     font-style: italic;
     color: #808080;

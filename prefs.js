@@ -4,19 +4,19 @@ import Gio from 'gi://Gio';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-export default class ClaudeUsagePreferences extends ExtensionPreferences {
+export default class InfoCenterPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
 
         const page = new Adw.PreferencesPage({
-            title: 'Claude Usage Settings',
+            title: 'Info Center Settings',
             icon_name: 'preferences-system-symbolic',
         });
         window.add(page);
 
         const generalGroup = new Adw.PreferencesGroup({
             title: 'General',
-            description: 'Configure the Claude Usage extension',
+            description: 'Configure the Info Center extension',
         });
         page.add(generalGroup);
 
@@ -90,7 +90,7 @@ export default class ClaudeUsagePreferences extends ExtensionPreferences {
 
         const showIconRow = new Adw.SwitchRow({
             title: 'Show Icon',
-            subtitle: 'Display the Claude icon in the top bar',
+            subtitle: 'Display the icon in the top bar',
         });
         settings.bind(
             'show-icon',

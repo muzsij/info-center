@@ -1,12 +1,9 @@
 {
-  "name": "Claude Code Usage",
+  "name": "Info Center",
   "description": "Display Claude Code usage in the top panel. This extension uses anthropic.com services. This extension is not affiliated, funded, or in any way associated with Claude.",
-  "uuid": "claude-code-usage@haletran.com",
+  "uuid": "info-center@muzsij",
   "shell-version": ["46", "47", "48", "49"],
-  "url": "https://github.com/Haletran/claude-usage-extension",
-  "settings-schema": "org.gnome.shell.extensions.claude-code-usage",
-  "donations": {
-    "github": "Haletran"
-  },
+  "url": "https://github.com/muzsij/info-center",
+  "settings-schema": "org.gnome.shell.extensions.info-center",
   "version": 3
 }
