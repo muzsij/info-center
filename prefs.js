@@ -10,8 +10,60 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
 
+        this._buildSettingsPage(window, settings);
         this._buildClaudePage(window, settings);
         this._buildRedminePage(window, settings);
+    }
+
+    _buildSettingsPage(window, settings) {
+        const page = new Adw.PreferencesPage({
+            title: 'Settings',
+            icon_name: 'emblem-system-symbolic',
+        });
+        window.add(page);
+
+        const placementGroup = new Adw.PreferencesGroup({
+            title: 'Panel placement',
+            description: 'Where the indicator appears in the top panel',
+        });
+        page.add(placementGroup);
+
+        const boxRow = new Adw.ComboRow({
+            title: 'Position',
+            subtitle: 'Which side of the top panel to show the indicator',
+        });
+        const boxModel = new Gtk.StringList();
+        boxModel.append('Left');
+        boxModel.append('Center');
+        boxModel.append('Right');
+        boxRow.set_model(boxModel);
+
+        const boxes = ['left', 'center', 'right'];
+        const currentBox = settings.get_string('panel-box');
+        boxRow.set_selected(Math.max(0, boxes.indexOf(currentBox)));
+        boxRow.connect('notify::selected', () => {
+            settings.set_string('panel-box', boxes[boxRow.get_selected()]);
+        });
+        placementGroup.add(boxRow);
+
+        const priorityRow = new Adw.SpinRow({
+            title: 'Priority',
+            subtitle: 'Order within the chosen side (lower is closer to the start)',
+            adjustment: new Gtk.Adjustment({
+                lower: 0,
+                upper: 20,
+                step_increment: 1,
+                page_increment: 5,
+                value: settings.get_int('panel-position'),
+            }),
+        });
+        settings.bind(
+            'panel-position',
+            priorityRow,
+            'value',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        placementGroup.add(priorityRow);
     }
 
     _buildClaudePage(window, settings) {

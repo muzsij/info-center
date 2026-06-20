@@ -761,15 +761,40 @@ class InfoCenterIndicator extends PanelMenu.Button {
 export default class InfoCenterExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
+        this._placeIndicator();
+
+        this._placementChangedId = this._settings.connect('changed', (settings, key) => {
+            if (key === 'panel-box' || key === 'panel-position') {
+                this._placeIndicator();
+            }
+        });
+    }
+
+    _placeIndicator() {
+        // Re-create so the indicator can move between panel boxes; destroying it
+        // first clears its entry in Main.panel.statusArea[this.uuid].
+        this._indicator?.destroy();
         this._indicator = new InfoCenterIndicator(
             this.path,
             this._settings,
             () => this.openPreferences()
         );
-        Main.panel.addToStatusArea(this.uuid, this._indicator);
+
+        const validBoxes = ['left', 'center', 'right'];
+        let box = this._settings.get_string('panel-box');
+        if (!validBoxes.includes(box)) {
+            box = 'right';
+        }
+        const position = this._settings.get_int('panel-position');
+
+        Main.panel.addToStatusArea(this.uuid, this._indicator, position, box);
     }
 
     disable() {
+        if (this._placementChangedId) {
+            this._settings.disconnect(this._placementChangedId);
+            this._placementChangedId = null;
+        }
         this._indicator?.destroy();
         this._indicator = null;
         this._settings = null;

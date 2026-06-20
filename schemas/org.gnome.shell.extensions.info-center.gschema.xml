@@ -21,6 +21,16 @@
       <summary>Show icon</summary>
       <description>Whether to show the icon in the top bar</description>
     </key>
+    <key name="panel-box" type="s">
+      <default>'right'</default>
+      <summary>Panel box</summary>
+      <description>Which side of the top panel the indicator appears in: 'left', 'center', or 'right'.</description>
+    </key>
+    <key name="panel-position" type="i">
+      <default>0</default>
+      <summary>Panel position</summary>
+      <description>Index of the indicator within the chosen panel box. Lower values appear closer to the start (left) of that side.</description>
+    </key>
     <key name="proxy-url" type="s">
       <default>''</default>
       <summary>Proxy URL</summary>
