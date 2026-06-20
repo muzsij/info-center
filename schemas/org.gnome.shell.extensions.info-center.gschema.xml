@@ -66,5 +66,10 @@
       <summary>Redmine status names</summary>
       <description>Map of Redmine issue status ID to display name, used to label statuses in the preferences.</description>
     </key>
+    <key name="redmine-tasks-all-projects" type="b">
+      <default>false</default>
+      <summary>Show tasks from all projects</summary>
+      <description>When enabled, the Today and Tomorrow task sections show issues from every project assigned to you, ignoring the selected projects. The monthly time totals still follow the selected projects.</description>
+    </key>
   </schema>
 </schemalist>

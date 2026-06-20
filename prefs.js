@@ -262,6 +262,19 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         });
         page.add(projectsGroup);
 
+        const allProjectTasksRow = new Adw.SwitchRow({
+            title: 'Show tasks from all projects',
+            subtitle: 'Today and Tomorrow sections ignore the selection above ' +
+                '(monthly totals still follow it)',
+        });
+        settings.bind(
+            'redmine-tasks-all-projects',
+            allProjectTasksRow,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        projectsGroup.add(allProjectTasksRow);
+
         // Rows currently shown in projectsGroup, so we can clear them on re-fetch.
         const projectRows = [];
 

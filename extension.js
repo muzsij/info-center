@@ -77,7 +77,8 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 key === 'redmine-api-key' ||
                 key === 'redmine-projects' ||
                 key === 'redmine-project-names' ||
-                key === 'redmine-statuses'
+                key === 'redmine-statuses' ||
+                key === 'redmine-tasks-all-projects'
             ) {
                 this._refreshRedmine();
             }
@@ -442,8 +443,11 @@ class InfoCenterIndicator extends PanelMenu.Button {
         const baseUrl = this._settings.get_string('redmine-url').trim().replace(/\/+$/, '');
         const apiKey = this._settings.get_string('redmine-api-key').trim();
         const projectIds = this._settings.get_strv('redmine-projects');
+        const allProjectTasks = this._settings.get_boolean('redmine-tasks-all-projects');
 
-        if (!baseUrl || !apiKey || projectIds.length === 0) {
+        // Tasks can run with all-projects mode even without a selection; the
+        // monthly totals always need at least one selected project.
+        if (!baseUrl || !apiKey || (projectIds.length === 0 && !allProjectTasks)) {
             this._redmineSeparator.hide();
             this._redmineItem.hide();
             this._redmineTodaySection.separator.hide();
@@ -453,11 +457,18 @@ class InfoCenterIndicator extends PanelMenu.Button {
             return;
         }
 
-        const now = GLib.DateTime.new_now_local();
-        const from = `${now.get_year()}-${String(now.get_month()).padStart(2, '0')}-01`;
-        const to = now.format('%Y-%m-%d');
+        // Monthly time totals are project-scoped; skip (and hide) them when no
+        // project is selected, even though task sections still run.
+        if (projectIds.length > 0) {
+            const now = GLib.DateTime.new_now_local();
+            const from = `${now.get_year()}-${String(now.get_month()).padStart(2, '0')}-01`;
+            const to = now.format('%Y-%m-%d');
+            this._fetchRedmineTimeEntries(baseUrl, apiKey, from, to, 0, {}, {});
+        } else {
+            this._redmineSeparator.hide();
+            this._redmineItem.hide();
+        }
 
-        this._fetchRedmineTimeEntries(baseUrl, apiKey, from, to, 0, {}, {});
         this._fetchRedmineIssues(baseUrl, apiKey, 0, []);
     }
 
@@ -506,6 +517,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
     }
 
     _updateRedmineIssuesDisplay(issues) {
+        const allProjectTasks = this._settings.get_boolean('redmine-tasks-all-projects');
         const projectIds = new Set(this._settings.get_strv('redmine-projects'));
         const statusIds = new Set(this._settings.get_strv('redmine-statuses'));
 
@@ -518,7 +530,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
 
         for (const issue of issues) {
             const projectId = String(issue.project?.id ?? '');
-            if (!projectIds.has(projectId)) {
+            if (!allProjectTasks && !projectIds.has(projectId)) {
                 continue;
             }
 
@@ -561,11 +573,33 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 style_class: 'info-center-reset-label',
             }));
         } else {
+            const baseUrl = this._settings.get_string('redmine-url')
+                .trim().replace(/\/+$/, '');
+
             for (const issue of issues) {
-                section.rowsBox.add_child(new St.Label({
+                const label = new St.Label({
                     text: issue.subject ?? `#${issue.id}`,
                     style_class: 'info-center-reset-label',
-                }));
+                    y_align: Clutter.ActorAlign.CENTER,
+                });
+
+                // Clickable only when we know where to point the browser.
+                if (baseUrl) {
+                    const button = new St.Button({
+                        child: label,
+                        style_class: 'info-center-issue-button',
+                        x_align: Clutter.ActorAlign.START,
+                        can_focus: true,
+                    });
+                    button.connect('clicked', () => {
+                        Gio.AppInfo.launch_default_for_uri(
+                            `${baseUrl}/issues/${issue.id}`, null);
+                        this.menu.close();
+                    });
+                    section.rowsBox.add_child(button);
+                } else {
+                    section.rowsBox.add_child(label);
+                }
             }
         }
 
