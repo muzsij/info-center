@@ -213,18 +213,110 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         // Rows currently shown in projectsGroup, so we can clear them on re-fetch.
         const projectRows = [];
 
-        fetchButton.connect('clicked', () => {
-            this._fetchProjects(settings, projectsGroup, projectRows, statusLabel, fetchButton);
+        const statusesGroup = new Adw.PreferencesGroup({
+            title: 'Task statuses',
+            description: 'Select which issue statuses count for the Today and ' +
+                'Tomorrow sections (none selected means all statuses count)',
         });
+        page.add(statusesGroup);
+
+        // Rows currently shown in statusesGroup, so we can clear them on re-fetch.
+        const statusRows = [];
+
+        const fetchAll = () => {
+            this._fetchProjects(settings, projectsGroup, projectRows, statusLabel, fetchButton);
+            this._fetchStatuses(settings, statusesGroup, statusRows);
+        };
+
+        fetchButton.connect('clicked', fetchAll);
 
         // Auto-fetch when the tab becomes visible, if both fields are filled.
         page.connect('map', () => {
             const haveUrl = settings.get_string('redmine-url').trim() !== '';
             const haveKey = settings.get_string('redmine-api-key').trim() !== '';
             if (haveUrl && haveKey) {
-                this._fetchProjects(settings, projectsGroup, projectRows, statusLabel, fetchButton);
+                fetchAll();
             }
         });
+    }
+
+    _fetchStatuses(settings, statusesGroup, statusRows) {
+        const baseUrl = settings.get_string('redmine-url').trim().replace(/\/+$/, '');
+        const apiKey = settings.get_string('redmine-api-key').trim();
+
+        if (!baseUrl || !apiKey) {
+            return;
+        }
+
+        for (const row of statusRows) {
+            statusesGroup.remove(row);
+        }
+        statusRows.length = 0;
+
+        const url = `${baseUrl}/issue_statuses.json`;
+        const session = new Soup.Session();
+        const message = Soup.Message.new('GET', url);
+        message.request_headers.append('X-Redmine-API-Key', apiKey);
+
+        session.send_and_read_async(
+            message,
+            GLib.PRIORITY_DEFAULT,
+            null,
+            (sess, result) => {
+                try {
+                    const bytes = sess.send_and_read_finish(result);
+
+                    if (message.status_code !== 200) {
+                        return;
+                    }
+
+                    const decoder = new TextDecoder('utf-8');
+                    const data = JSON.parse(decoder.decode(bytes.get_data()));
+                    const statuses = data.issue_statuses ?? [];
+
+                    if (statuses.length === 0) {
+                        return;
+                    }
+
+                    const selected = new Set(settings.get_strv('redmine-statuses'));
+
+                    const nameMap = {};
+                    for (const status of statuses) {
+                        nameMap[String(status.id)] = status.name;
+                    }
+                    settings.set_value(
+                        'redmine-status-names',
+                        new GLib.Variant('a{ss}', nameMap)
+                    );
+
+                    for (const status of statuses) {
+                        const id = String(status.id);
+
+                        const row = new Adw.ActionRow({ title: status.name });
+                        const check = new Gtk.CheckButton({
+                            active: selected.has(id),
+                            valign: Gtk.Align.CENTER,
+                        });
+                        check.connect('toggled', () => {
+                            const current = new Set(settings.get_strv('redmine-statuses'));
+                            if (check.get_active()) {
+                                current.add(id);
+                            } else {
+                                current.delete(id);
+                            }
+                            settings.set_strv('redmine-statuses', [...current]);
+                        });
+                        row.add_prefix(check);
+                        row.set_activatable_widget(check);
+
+                        statusesGroup.add(row);
+                        statusRows.push(row);
+                    }
+                } catch (e) {
+                    // Statuses are optional; surface nothing on failure.
+                }
+            }
+        );
     }
 
     _fetchProjects(settings, projectsGroup, projectRows, statusLabel, fetchButton) {

@@ -46,5 +46,15 @@
       <summary>Redmine project names</summary>
       <description>Map of Redmine project ID to display name, used to label projects in the panel menu.</description>
     </key>
+    <key name="redmine-statuses" type="as">
+      <default>[]</default>
+      <summary>Selected Redmine task statuses</summary>
+      <description>IDs of the Redmine issue statuses that count for the Today and Tomorrow sections.</description>
+    </key>
+    <key name="redmine-status-names" type="a{ss}">
+      <default>{}</default>
+      <summary>Redmine status names</summary>
+      <description>Map of Redmine issue status ID to display name, used to label statuses in the preferences.</description>
+    </key>
   </schema>
 </schemalist>

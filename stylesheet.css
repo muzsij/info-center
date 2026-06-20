@@ -26,9 +26,15 @@
 
 /* Usage section styles */
 .info-center-usage-section {
-    padding: 4px 0;
-    spacing: 6px;
-    min-width: 220px;
+    padding: 2px 0;
+    spacing: 3px;
+    min-width: 320px;
+}
+
+/* Tighter separators between sections */
+.info-center-separator {
+    padding-top: 2px;
+    padding-bottom: 2px;
 }
 
 .info-center-section-title {
@@ -76,8 +82,8 @@
 
 /* Redmine time entry rows */
 .info-center-redmine-rows {
-    spacing: 4px;
-    margin-top: 4px;
+    spacing: 2px;
+    margin-top: 2px;
 }
 
 /* Reset label styles */

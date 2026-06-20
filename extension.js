@@ -76,7 +76,8 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 key === 'redmine-url' ||
                 key === 'redmine-api-key' ||
                 key === 'redmine-projects' ||
-                key === 'redmine-project-names'
+                key === 'redmine-project-names' ||
+                key === 'redmine-statuses'
             ) {
                 this._refreshRedmine();
             }
@@ -156,7 +157,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
         });
         const fiveHourHeader = new St.BoxLayout({ vertical: false });
         const fiveHourLabel = new St.Label({
-            text: '5-Hour Usage',
+            text: 'Claude 5-Hour Usage',
             style_class: 'info-center-section-title',
         });
         fiveHourHeader.add_child(fiveHourLabel);
@@ -191,7 +192,9 @@ class InfoCenterIndicator extends PanelMenu.Button {
         fiveHourItem.add_child(fiveHourBox);
         this.menu.addMenuItem(fiveHourItem);
 
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        const topSeparator = new PopupMenu.PopupSeparatorMenuItem();
+        topSeparator.add_style_class_name('info-center-separator');
+        this.menu.addMenuItem(topSeparator);
 
         const sevenDayBox = new St.BoxLayout({
             style_class: 'info-center-usage-section',
@@ -199,7 +202,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
         });
         const sevenDayHeader = new St.BoxLayout({ vertical: false });
         const sevenDayLabel = new St.Label({
-            text: '7-Day Usage',
+            text: 'Claude 7-Day Usage',
             style_class: 'info-center-section-title',
         });
         sevenDayHeader.add_child(sevenDayLabel);
@@ -234,7 +237,12 @@ class InfoCenterIndicator extends PanelMenu.Button {
         sevenDayItem.add_child(sevenDayBox);
         this.menu.addMenuItem(sevenDayItem);
 
+        // Today / Tomorrow task sections come before the "this month" totals.
+        this._redmineTodaySection = this._createRedmineSection('Redmine Issues — Today');
+        this._redmineTomorrowSection = this._createRedmineSection('Redmine Issues — Tomorrow');
+
         this._redmineSeparator = new PopupMenu.PopupSeparatorMenuItem();
+        this._redmineSeparator.add_style_class_name('info-center-separator');
         this.menu.addMenuItem(this._redmineSeparator);
 
         this._redmineBox = new St.BoxLayout({
@@ -242,7 +250,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
             vertical: true,
         });
         const redmineTitle = new St.Label({
-            text: 'Redmine — this month',
+            text: 'Redmine time — this month',
             style_class: 'info-center-section-title',
         });
         this._redmineBox.add_child(redmineTitle);
@@ -264,13 +272,50 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._redmineSeparator.hide();
         this._redmineItem.hide();
 
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        const footerSeparator = new PopupMenu.PopupSeparatorMenuItem();
+        footerSeparator.add_style_class_name('info-center-separator');
+        this.menu.addMenuItem(footerSeparator);
 
         const settingsItem = new PopupMenu.PopupMenuItem('Settings');
         settingsItem.connect('activate', () => {
             this._openPreferences();
         });
         this.menu.addMenuItem(settingsItem);
+    }
+
+    _createRedmineSection(title) {
+        const separator = new PopupMenu.PopupSeparatorMenuItem();
+        separator.add_style_class_name('info-center-separator');
+        this.menu.addMenuItem(separator);
+
+        const box = new St.BoxLayout({
+            style_class: 'info-center-usage-section',
+            vertical: true,
+        });
+        const titleLabel = new St.Label({
+            text: title,
+            style_class: 'info-center-section-title',
+        });
+        box.add_child(titleLabel);
+
+        const rowsBox = new St.BoxLayout({
+            vertical: true,
+            style_class: 'info-center-redmine-rows',
+        });
+        box.add_child(rowsBox);
+
+        const item = new PopupMenu.PopupBaseMenuItem({
+            reactive: false,
+            can_focus: false,
+        });
+        item.add_child(box);
+        this.menu.addMenuItem(item);
+
+        // Hidden until Redmine is configured with at least one selected project.
+        separator.hide();
+        item.hide();
+
+        return { separator, item, rowsBox };
     }
 
     _startTimer() {
@@ -401,6 +446,10 @@ class InfoCenterIndicator extends PanelMenu.Button {
         if (!baseUrl || !apiKey || projectIds.length === 0) {
             this._redmineSeparator.hide();
             this._redmineItem.hide();
+            this._redmineTodaySection.separator.hide();
+            this._redmineTodaySection.item.hide();
+            this._redmineTomorrowSection.separator.hide();
+            this._redmineTomorrowSection.item.hide();
             return;
         }
 
@@ -409,6 +458,131 @@ class InfoCenterIndicator extends PanelMenu.Button {
         const to = now.format('%Y-%m-%d');
 
         this._fetchRedmineTimeEntries(baseUrl, apiKey, from, to, 0, {}, {});
+        this._fetchRedmineIssues(baseUrl, apiKey, 0, []);
+    }
+
+    _fetchRedmineIssues(baseUrl, apiKey, offset, issues) {
+        if (!this._session) {
+            return;
+        }
+
+        const limit = 100;
+        const url = `${baseUrl}/issues.json?assigned_to_id=me&status_id=*` +
+            `&limit=${limit}&offset=${offset}`;
+        const message = Soup.Message.new('GET', url);
+        message.request_headers.append('X-Redmine-API-Key', apiKey);
+
+        this._session.send_and_read_async(
+            message,
+            GLib.PRIORITY_DEFAULT,
+            null,
+            (session, result) => {
+                try {
+                    const bytes = session.send_and_read_finish(result);
+
+                    if (message.status_code !== 200) {
+                        this._setRedmineIssuesMessage(`Error: HTTP ${message.status_code}`);
+                        return;
+                    }
+
+                    const decoder = new TextDecoder('utf-8');
+                    const data = JSON.parse(decoder.decode(bytes.get_data()));
+                    const page = data.issues ?? [];
+                    issues.push(...page);
+
+                    const totalCount = data.total_count ?? issues.length;
+                    const nextOffset = offset + limit;
+                    if (nextOffset < totalCount && page.length > 0) {
+                        this._fetchRedmineIssues(baseUrl, apiKey, nextOffset, issues);
+                    } else {
+                        this._updateRedmineIssuesDisplay(issues);
+                    }
+                } catch (e) {
+                    console.error('Info Center: Failed to fetch Redmine issues:', e.message);
+                    this._setRedmineIssuesMessage('Error fetching data');
+                }
+            }
+        );
+    }
+
+    _updateRedmineIssuesDisplay(issues) {
+        const projectIds = new Set(this._settings.get_strv('redmine-projects'));
+        const statusIds = new Set(this._settings.get_strv('redmine-statuses'));
+
+        const now = GLib.DateTime.new_now_local();
+        const today = now.format('%Y-%m-%d');
+        const tomorrow = now.add_days(1).format('%Y-%m-%d');
+
+        const todayIssues = [];
+        const tomorrowIssues = [];
+
+        for (const issue of issues) {
+            const projectId = String(issue.project?.id ?? '');
+            if (!projectIds.has(projectId)) {
+                continue;
+            }
+
+            // No statuses selected → all statuses count.
+            const statusId = String(issue.status?.id ?? '');
+            if (statusIds.size > 0 && !statusIds.has(statusId)) {
+                continue;
+            }
+
+            const start = issue.start_date ?? null;
+            const due = issue.due_date ?? null;
+            if (!start && !due) {
+                continue;
+            }
+
+            // A multi-day task is "active" on every day of its span. With only
+            // one date set, the span collapses to that single day.
+            const spanStart = start ?? due;
+            const spanEnd = due ?? start;
+
+            // YYYY-MM-DD strings sort chronologically.
+            if (spanStart <= today && today <= spanEnd) {
+                todayIssues.push(issue);
+            }
+            if (spanStart <= tomorrow && tomorrow <= spanEnd) {
+                tomorrowIssues.push(issue);
+            }
+        }
+
+        this._setRedmineIssueRows(this._redmineTodaySection, todayIssues);
+        this._setRedmineIssueRows(this._redmineTomorrowSection, tomorrowIssues);
+    }
+
+    _setRedmineIssueRows(section, issues) {
+        section.rowsBox.destroy_all_children();
+
+        if (issues.length === 0) {
+            section.rowsBox.add_child(new St.Label({
+                text: 'No tasks',
+                style_class: 'info-center-reset-label',
+            }));
+        } else {
+            for (const issue of issues) {
+                section.rowsBox.add_child(new St.Label({
+                    text: issue.subject ?? `#${issue.id}`,
+                    style_class: 'info-center-reset-label',
+                }));
+            }
+        }
+
+        section.separator.show();
+        section.item.show();
+    }
+
+    _setRedmineIssuesMessage(text) {
+        for (const section of [this._redmineTodaySection, this._redmineTomorrowSection]) {
+            section.rowsBox.destroy_all_children();
+            section.rowsBox.add_child(new St.Label({
+                text,
+                style_class: 'info-center-reset-label',
+            }));
+            section.separator.show();
+            section.item.show();
+        }
     }
 
     _fetchRedmineTimeEntries(baseUrl, apiKey, from, to, offset, hoursByProject, namesByProject) {
