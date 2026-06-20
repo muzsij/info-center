@@ -74,6 +74,12 @@
     background-color: #ef4444;
 }
 
+/* Redmine time entry rows */
+.info-center-redmine-rows {
+    spacing: 4px;
+    margin-top: 4px;
+}
+
 /* Reset label styles */
 .info-center-reset-label {
     font-size: 11px;

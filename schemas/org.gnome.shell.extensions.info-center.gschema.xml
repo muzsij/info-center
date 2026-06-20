@@ -26,5 +26,25 @@
       <summary>Proxy URL</summary>
       <description>HTTP proxy URL (e.g., http://localhost:11809). Leave empty to use no proxy.</description>
     </key>
+    <key name="redmine-url" type="s">
+      <default>''</default>
+      <summary>Redmine URL</summary>
+      <description>Base URL of the Redmine server (e.g., https://redmine.example.com). Leave empty to disable.</description>
+    </key>
+    <key name="redmine-api-key" type="s">
+      <default>''</default>
+      <summary>Redmine API key</summary>
+      <description>API access key used to authenticate with the Redmine server.</description>
+    </key>
+    <key name="redmine-projects" type="as">
+      <default>[]</default>
+      <summary>Selected Redmine projects</summary>
+      <description>IDs of the Redmine projects to fetch data from.</description>
+    </key>
+    <key name="redmine-project-names" type="a{ss}">
+      <default>{}</default>
+      <summary>Redmine project names</summary>
+      <description>Map of Redmine project ID to display name, used to label projects in the panel menu.</description>
+    </key>
   </schema>
 </schemalist>

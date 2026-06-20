@@ -1,6 +1,8 @@
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import Soup from 'gi://Soup';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
@@ -8,8 +10,13 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
 
+        this._buildClaudePage(window, settings);
+        this._buildRedminePage(window, settings);
+    }
+
+    _buildClaudePage(window, settings) {
         const page = new Adw.PreferencesPage({
-            title: 'Info Center Settings',
+            title: 'Claude',
             icon_name: 'preferences-system-symbolic',
         });
         window.add(page);
@@ -124,5 +131,192 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
             margin_top: 4,
         });
         networkGroup.add(proxyHint);
+    }
+
+    _buildRedminePage(window, settings) {
+        const page = new Adw.PreferencesPage({
+            title: 'Redmine',
+            icon_name: 'network-server-symbolic',
+        });
+        window.add(page);
+
+        const connectionGroup = new Adw.PreferencesGroup({
+            title: 'Connection',
+            description: 'Configure access to your Redmine server',
+        });
+        page.add(connectionGroup);
+
+        const urlRow = new Adw.EntryRow({
+            title: 'Server URL',
+            show_apply_button: true,
+        });
+        urlRow.set_text(settings.get_string('redmine-url'));
+        urlRow.connect('apply', () => {
+            settings.set_string('redmine-url', urlRow.get_text().trim());
+        });
+        connectionGroup.add(urlRow);
+
+        const urlHint = new Gtk.Label({
+            label: 'Example: https://redmine.example.com (leave empty to disable)',
+            xalign: 0,
+            css_classes: ['dim-label', 'caption'],
+            margin_start: 12,
+            margin_top: 4,
+        });
+        connectionGroup.add(urlHint);
+
+        const apiKeyRow = new Adw.PasswordEntryRow({
+            title: 'API Key',
+            show_apply_button: true,
+        });
+        apiKeyRow.set_text(settings.get_string('redmine-api-key'));
+        apiKeyRow.connect('apply', () => {
+            settings.set_string('redmine-api-key', apiKeyRow.get_text().trim());
+        });
+        connectionGroup.add(apiKeyRow);
+
+        const apiKeyHint = new Gtk.Label({
+            label: 'Found in Redmine under My account → API access key',
+            xalign: 0,
+            css_classes: ['dim-label', 'caption'],
+            margin_start: 12,
+            margin_top: 4,
+        });
+        connectionGroup.add(apiKeyHint);
+
+        const fetchButton = new Gtk.Button({
+            label: 'Fetch projects',
+            css_classes: ['suggested-action'],
+            halign: Gtk.Align.START,
+            margin_start: 12,
+            margin_top: 8,
+            margin_bottom: 4,
+        });
+        connectionGroup.add(fetchButton);
+
+        const statusLabel = new Gtk.Label({
+            xalign: 0,
+            visible: false,
+            wrap: true,
+            css_classes: ['dim-label', 'caption'],
+            margin_start: 12,
+            margin_top: 4,
+        });
+        connectionGroup.add(statusLabel);
+
+        const projectsGroup = new Adw.PreferencesGroup({
+            title: 'Projects',
+            description: 'Select the projects to fetch data from',
+        });
+        page.add(projectsGroup);
+
+        // Rows currently shown in projectsGroup, so we can clear them on re-fetch.
+        const projectRows = [];
+
+        fetchButton.connect('clicked', () => {
+            this._fetchProjects(settings, projectsGroup, projectRows, statusLabel, fetchButton);
+        });
+
+        // Auto-fetch when the tab becomes visible, if both fields are filled.
+        page.connect('map', () => {
+            const haveUrl = settings.get_string('redmine-url').trim() !== '';
+            const haveKey = settings.get_string('redmine-api-key').trim() !== '';
+            if (haveUrl && haveKey) {
+                this._fetchProjects(settings, projectsGroup, projectRows, statusLabel, fetchButton);
+            }
+        });
+    }
+
+    _fetchProjects(settings, projectsGroup, projectRows, statusLabel, fetchButton) {
+        const baseUrl = settings.get_string('redmine-url').trim().replace(/\/+$/, '');
+        const apiKey = settings.get_string('redmine-api-key').trim();
+
+        const setStatus = (text) => {
+            statusLabel.set_text(text);
+            statusLabel.visible = true;
+        };
+
+        if (!baseUrl || !apiKey) {
+            setStatus('Set the Server URL and API Key first (use the apply buttons).');
+            return;
+        }
+
+        for (const row of projectRows) {
+            projectsGroup.remove(row);
+        }
+        projectRows.length = 0;
+
+        fetchButton.set_sensitive(false);
+        setStatus('Fetching projects…');
+
+        const url = `${baseUrl}/projects.json?limit=100`;
+        const session = new Soup.Session();
+        const message = Soup.Message.new('GET', url);
+        message.request_headers.append('X-Redmine-API-Key', apiKey);
+
+        session.send_and_read_async(
+            message,
+            GLib.PRIORITY_DEFAULT,
+            null,
+            (sess, result) => {
+                fetchButton.set_sensitive(true);
+                try {
+                    const bytes = sess.send_and_read_finish(result);
+
+                    if (message.status_code !== 200) {
+                        setStatus(`Error: HTTP ${message.status_code}`);
+                        return;
+                    }
+
+                    const decoder = new TextDecoder('utf-8');
+                    const data = JSON.parse(decoder.decode(bytes.get_data()));
+                    const projects = data.projects ?? [];
+
+                    if (projects.length === 0) {
+                        setStatus('No projects found.');
+                        return;
+                    }
+
+                    const selected = new Set(settings.get_strv('redmine-projects'));
+
+                    const nameMap = {};
+                    for (const project of projects) {
+                        nameMap[String(project.id)] = project.name;
+                    }
+                    settings.set_value(
+                        'redmine-project-names',
+                        new GLib.Variant('a{ss}', nameMap)
+                    );
+
+                    for (const project of projects) {
+                        const id = String(project.id);
+
+                        const row = new Adw.ActionRow({ title: project.name });
+                        const check = new Gtk.CheckButton({
+                            active: selected.has(id),
+                            valign: Gtk.Align.CENTER,
+                        });
+                        check.connect('toggled', () => {
+                            const current = new Set(settings.get_strv('redmine-projects'));
+                            if (check.get_active()) {
+                                current.add(id);
+                            } else {
+                                current.delete(id);
+                            }
+                            settings.set_strv('redmine-projects', [...current]);
+                        });
+                        row.add_prefix(check);
+                        row.set_activatable_widget(check);
+
+                        projectsGroup.add(row);
+                        projectRows.push(row);
+                    }
+
+                    setStatus(`Loaded ${projects.length} project(s).`);
+                } catch (e) {
+                    setStatus(`Error: ${e.message}`);
+                }
+            }
+        );
     }
 }

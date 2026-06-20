@@ -72,10 +72,18 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 this._recreateSession();
             } else if (key === 'icon-style') {
                 this._updateIconStyle();
+            } else if (
+                key === 'redmine-url' ||
+                key === 'redmine-api-key' ||
+                key === 'redmine-projects' ||
+                key === 'redmine-project-names'
+            ) {
+                this._refreshRedmine();
             }
         });
 
         this._refreshUsage();
+        this._refreshRedmine();
         this._startTimer();
     }
 
@@ -226,6 +234,36 @@ class InfoCenterIndicator extends PanelMenu.Button {
         sevenDayItem.add_child(sevenDayBox);
         this.menu.addMenuItem(sevenDayItem);
 
+        this._redmineSeparator = new PopupMenu.PopupSeparatorMenuItem();
+        this.menu.addMenuItem(this._redmineSeparator);
+
+        this._redmineBox = new St.BoxLayout({
+            style_class: 'info-center-usage-section',
+            vertical: true,
+        });
+        const redmineTitle = new St.Label({
+            text: 'Redmine — this month',
+            style_class: 'info-center-section-title',
+        });
+        this._redmineBox.add_child(redmineTitle);
+
+        this._redmineRowsBox = new St.BoxLayout({
+            vertical: true,
+            style_class: 'info-center-redmine-rows',
+        });
+        this._redmineBox.add_child(this._redmineRowsBox);
+
+        this._redmineItem = new PopupMenu.PopupBaseMenuItem({
+            reactive: false,
+            can_focus: false,
+        });
+        this._redmineItem.add_child(this._redmineBox);
+        this.menu.addMenuItem(this._redmineItem);
+
+        // Hidden until Redmine is configured with at least one selected project.
+        this._redmineSeparator.hide();
+        this._redmineItem.hide();
+
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         const settingsItem = new PopupMenu.PopupMenuItem('Settings');
@@ -242,6 +280,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
             interval,
             () => {
                 this._refreshUsage();
+                this._refreshRedmine();
                 return GLib.SOURCE_CONTINUE;
             }
         );
@@ -348,6 +387,134 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 `Resets in ${this._formatResetTime(data.seven_day.resets_at)}`
             );
         }
+    }
+
+    _refreshRedmine() {
+        if (!this._redmineItem) {
+            return;
+        }
+
+        const baseUrl = this._settings.get_string('redmine-url').trim().replace(/\/+$/, '');
+        const apiKey = this._settings.get_string('redmine-api-key').trim();
+        const projectIds = this._settings.get_strv('redmine-projects');
+
+        if (!baseUrl || !apiKey || projectIds.length === 0) {
+            this._redmineSeparator.hide();
+            this._redmineItem.hide();
+            return;
+        }
+
+        const now = GLib.DateTime.new_now_local();
+        const from = `${now.get_year()}-${String(now.get_month()).padStart(2, '0')}-01`;
+        const to = now.format('%Y-%m-%d');
+
+        this._fetchRedmineTimeEntries(baseUrl, apiKey, from, to, 0, {}, {});
+    }
+
+    _fetchRedmineTimeEntries(baseUrl, apiKey, from, to, offset, hoursByProject, namesByProject) {
+        if (!this._session) {
+            return;
+        }
+
+        const limit = 100;
+        const url = `${baseUrl}/time_entries.json?user_id=me` +
+            `&from=${from}&to=${to}&limit=${limit}&offset=${offset}`;
+        const message = Soup.Message.new('GET', url);
+        message.request_headers.append('X-Redmine-API-Key', apiKey);
+
+        this._session.send_and_read_async(
+            message,
+            GLib.PRIORITY_DEFAULT,
+            null,
+            (session, result) => {
+                try {
+                    const bytes = session.send_and_read_finish(result);
+
+                    if (message.status_code !== 200) {
+                        this._setRedmineMessage(`Error: HTTP ${message.status_code}`);
+                        return;
+                    }
+
+                    const decoder = new TextDecoder('utf-8');
+                    const data = JSON.parse(decoder.decode(bytes.get_data()));
+                    const entries = data.time_entries ?? [];
+
+                    for (const entry of entries) {
+                        const id = String(entry.project?.id ?? '');
+                        if (id) {
+                            hoursByProject[id] = (hoursByProject[id] ?? 0) + (entry.hours ?? 0);
+                            if (entry.project?.name) {
+                                namesByProject[id] = entry.project.name;
+                            }
+                        }
+                    }
+
+                    const totalCount = data.total_count ?? entries.length;
+                    const nextOffset = offset + limit;
+                    if (nextOffset < totalCount) {
+                        this._fetchRedmineTimeEntries(
+                            baseUrl, apiKey, from, to, nextOffset, hoursByProject, namesByProject
+                        );
+                    } else {
+                        this._updateRedmineDisplay(hoursByProject, namesByProject);
+                    }
+                } catch (e) {
+                    console.error('Info Center: Failed to fetch Redmine time entries:', e.message);
+                    this._setRedmineMessage('Error fetching data');
+                }
+            }
+        );
+    }
+
+    _updateRedmineDisplay(hoursByProject, namesByProject = {}) {
+        const projectIds = this._settings.get_strv('redmine-projects');
+        const storedNames = this._settings.get_value('redmine-project-names').deep_unpack();
+
+        this._redmineRowsBox.destroy_all_children();
+
+        for (const id of projectIds) {
+            const name = namesByProject[id] ?? storedNames[id] ?? `Project #${id}`;
+            const hours = hoursByProject[id] ?? 0;
+
+            const row = new St.BoxLayout({ vertical: false });
+            const nameLabel = new St.Label({
+                text: name,
+                style_class: 'info-center-reset-label',
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            row.add_child(nameLabel);
+
+            const valueLabel = new St.Label({
+                text: this._formatHours(hours),
+                style_class: 'info-center-percent-label',
+                x_expand: true,
+                x_align: Clutter.ActorAlign.END,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            row.add_child(valueLabel);
+
+            this._redmineRowsBox.add_child(row);
+        }
+
+        this._redmineSeparator.show();
+        this._redmineItem.show();
+    }
+
+    _setRedmineMessage(text) {
+        this._redmineRowsBox.destroy_all_children();
+        this._redmineRowsBox.add_child(new St.Label({
+            text,
+            style_class: 'info-center-reset-label',
+        }));
+        this._redmineSeparator.show();
+        this._redmineItem.show();
+    }
+
+    _formatHours(hours) {
+        const totalMinutes = Math.round(hours * 60);
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
+        return `${h}:${String(m).padStart(2, '0')}`;
     }
 
     _updatePanelProgressBar(usage) {
