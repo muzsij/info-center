@@ -1,6 +1,6 @@
 {
   "name": "Info Center",
-  "description": "Display Claude Code usage in the top panel. This extension uses anthropic.com services. This extension is not affiliated, funded, or in any way associated with Claude.",
+  "description": "Display Claude Code usage in the top panel, and optionally your Redmine time logged this month and the issues due today and tomorrow in the dropdown. This extension uses anthropic.com services. This extension is not affiliated, funded, or in any way associated with Claude.",
   "uuid": "info-center@muzsij",
   "shell-version": ["46", "47", "48", "49"],
   "url": "https://github.com/muzsij/info-center",
