@@ -9,9 +9,10 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
-import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
+import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-const API_URL = 'https://api.anthropic.com/api/oauth/usage';
+import {ClaudeUsage} from './claudeUsage.js';
+import {Redmine} from './redmine.js';
 
 const InfoCenterIndicator = GObject.registerClass(
 class InfoCenterIndicator extends PanelMenu.Button {
@@ -55,6 +56,14 @@ class InfoCenterIndicator extends PanelMenu.Button {
 
         this.add_child(this._box);
 
+        // The Claude and Redmine feature modules own their own menu sections and
+        // fetch/render logic. They read the live Soup session through a getter so
+        // proxy recreation here is picked up on their next request.
+        const getSession = () => this._session;
+        this._claude = new ClaudeUsage(
+            this._settings, getSession, this._label, this._panelProgressBar);
+        this._redmine = new Redmine(this._settings, getSession);
+
         this._createMenu();
 
         this._updateDisplayMode();
@@ -80,13 +89,28 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 key === 'redmine-statuses' ||
                 key === 'redmine-tasks-all-projects'
             ) {
-                this._refreshRedmine();
+                this._redmine.refresh();
             }
         });
 
-        this._refreshUsage();
-        this._refreshRedmine();
+        this._claude.refresh();
+        this._redmine.refresh();
         this._startTimer();
+    }
+
+    _createMenu() {
+        this._claude.buildMenu(this.menu);
+        this._redmine.buildMenu(this.menu);
+
+        const footerSeparator = new PopupMenu.PopupSeparatorMenuItem();
+        footerSeparator.add_style_class_name('info-center-separator');
+        this.menu.addMenuItem(footerSeparator);
+
+        const settingsItem = new PopupMenu.PopupMenuItem('Settings');
+        settingsItem.connect('activate', () => {
+            this._openPreferences();
+        });
+        this.menu.addMenuItem(settingsItem);
     }
 
     _updateDisplayMode() {
@@ -132,8 +156,9 @@ class InfoCenterIndicator extends PanelMenu.Button {
             this._session.abort();
         }
         this._session = this._createSession();
-        this._refreshUsage();
-	}
+        this._claude.refresh();
+    }
+
     _updateIconStyle() {
         const style = this._settings.get_string('icon-style');
         const desatName = 'monochrome-desaturate';
@@ -151,182 +176,14 @@ class InfoCenterIndicator extends PanelMenu.Button {
         }
     }
 
-    _createMenu() {
-        const fiveHourBox = new St.BoxLayout({
-            style_class: 'info-center-usage-section',
-            vertical: true,
-        });
-        const fiveHourHeader = new St.BoxLayout({ vertical: false });
-        const fiveHourLabel = new St.Label({
-            text: 'Claude 5-Hour Usage',
-            style_class: 'info-center-section-title',
-        });
-        fiveHourHeader.add_child(fiveHourLabel);
-        this._fiveHourPercent = new St.Label({
-            text: '...',
-            style_class: 'info-center-percent-label',
-            x_expand: true,
-            x_align: Clutter.ActorAlign.END,
-        });
-        fiveHourHeader.add_child(this._fiveHourPercent);
-        fiveHourBox.add_child(fiveHourHeader);
-
-        const fiveHourProgressBg = new St.Widget({
-            style_class: 'info-center-progress-bg',
-        });
-        this._fiveHourProgressBar = new St.Widget({
-            style_class: 'info-center-progress-bar usage-low',
-        });
-        fiveHourProgressBg.add_child(this._fiveHourProgressBar);
-        fiveHourBox.add_child(fiveHourProgressBg);
-
-        this._fiveHourResetLabel = new St.Label({
-            text: 'Resets: ...',
-            style_class: 'info-center-reset-label',
-        });
-        fiveHourBox.add_child(this._fiveHourResetLabel);
-
-        const fiveHourItem = new PopupMenu.PopupBaseMenuItem({
-            reactive: false,
-            can_focus: false,
-        });
-        fiveHourItem.add_child(fiveHourBox);
-        this.menu.addMenuItem(fiveHourItem);
-
-        const topSeparator = new PopupMenu.PopupSeparatorMenuItem();
-        topSeparator.add_style_class_name('info-center-separator');
-        this.menu.addMenuItem(topSeparator);
-
-        const sevenDayBox = new St.BoxLayout({
-            style_class: 'info-center-usage-section',
-            vertical: true,
-        });
-        const sevenDayHeader = new St.BoxLayout({ vertical: false });
-        const sevenDayLabel = new St.Label({
-            text: 'Claude 7-Day Usage',
-            style_class: 'info-center-section-title',
-        });
-        sevenDayHeader.add_child(sevenDayLabel);
-        this._sevenDayPercent = new St.Label({
-            text: '...',
-            style_class: 'info-center-percent-label',
-            x_expand: true,
-            x_align: Clutter.ActorAlign.END,
-        });
-        sevenDayHeader.add_child(this._sevenDayPercent);
-        sevenDayBox.add_child(sevenDayHeader);
-
-        const sevenDayProgressBg = new St.Widget({
-            style_class: 'info-center-progress-bg',
-        });
-        this._sevenDayProgressBar = new St.Widget({
-            style_class: 'info-center-progress-bar usage-low',
-        });
-        sevenDayProgressBg.add_child(this._sevenDayProgressBar);
-        sevenDayBox.add_child(sevenDayProgressBg);
-
-        this._sevenDayResetLabel = new St.Label({
-            text: 'Resets: ...',
-            style_class: 'info-center-reset-label',
-        });
-        sevenDayBox.add_child(this._sevenDayResetLabel);
-
-        const sevenDayItem = new PopupMenu.PopupBaseMenuItem({
-            reactive: false,
-            can_focus: false,
-        });
-        sevenDayItem.add_child(sevenDayBox);
-        this.menu.addMenuItem(sevenDayItem);
-
-        // Today / Tomorrow task sections come before the "this month" totals.
-        this._redmineTodaySection = this._createRedmineSection('Redmine Issues — Today');
-        this._redmineTomorrowSection = this._createRedmineSection('Redmine Issues — Tomorrow');
-
-        this._redmineSeparator = new PopupMenu.PopupSeparatorMenuItem();
-        this._redmineSeparator.add_style_class_name('info-center-separator');
-        this.menu.addMenuItem(this._redmineSeparator);
-
-        this._redmineBox = new St.BoxLayout({
-            style_class: 'info-center-usage-section',
-            vertical: true,
-        });
-        const redmineTitle = new St.Label({
-            text: 'Redmine time — this month',
-            style_class: 'info-center-section-title',
-        });
-        this._redmineBox.add_child(redmineTitle);
-
-        this._redmineRowsBox = new St.BoxLayout({
-            vertical: true,
-            style_class: 'info-center-redmine-rows',
-        });
-        this._redmineBox.add_child(this._redmineRowsBox);
-
-        this._redmineItem = new PopupMenu.PopupBaseMenuItem({
-            reactive: false,
-            can_focus: false,
-        });
-        this._redmineItem.add_child(this._redmineBox);
-        this.menu.addMenuItem(this._redmineItem);
-
-        // Hidden until Redmine is configured with at least one selected project.
-        this._redmineSeparator.hide();
-        this._redmineItem.hide();
-
-        const footerSeparator = new PopupMenu.PopupSeparatorMenuItem();
-        footerSeparator.add_style_class_name('info-center-separator');
-        this.menu.addMenuItem(footerSeparator);
-
-        const settingsItem = new PopupMenu.PopupMenuItem('Settings');
-        settingsItem.connect('activate', () => {
-            this._openPreferences();
-        });
-        this.menu.addMenuItem(settingsItem);
-    }
-
-    _createRedmineSection(title) {
-        const separator = new PopupMenu.PopupSeparatorMenuItem();
-        separator.add_style_class_name('info-center-separator');
-        this.menu.addMenuItem(separator);
-
-        const box = new St.BoxLayout({
-            style_class: 'info-center-usage-section',
-            vertical: true,
-        });
-        const titleLabel = new St.Label({
-            text: title,
-            style_class: 'info-center-section-title',
-        });
-        box.add_child(titleLabel);
-
-        const rowsBox = new St.BoxLayout({
-            vertical: true,
-            style_class: 'info-center-redmine-rows',
-        });
-        box.add_child(rowsBox);
-
-        const item = new PopupMenu.PopupBaseMenuItem({
-            reactive: false,
-            can_focus: false,
-        });
-        item.add_child(box);
-        this.menu.addMenuItem(item);
-
-        // Hidden until Redmine is configured with at least one selected project.
-        separator.hide();
-        item.hide();
-
-        return { separator, item, rowsBox };
-    }
-
     _startTimer() {
         const interval = this._settings.get_int('refresh-interval');
         this._timerId = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT,
             interval,
             () => {
-                this._refreshUsage();
-                this._refreshRedmine();
+                this._claude.refresh();
+                this._redmine.refresh();
                 return GLib.SOURCE_CONTINUE;
             }
         );
@@ -342,440 +199,6 @@ class InfoCenterIndicator extends PanelMenu.Button {
     _restartTimer() {
         this._stopTimer();
         this._startTimer();
-    }
-
-    _refreshUsage() {
-        const configDir = GLib.getenv('CLAUDE_CONFIG_DIR') ??
-            GLib.build_filenamev([GLib.get_home_dir(), '.claude']);
-        const credentialsPath = GLib.build_filenamev([
-            configDir,
-            '.credentials.json',
-        ]);
-
-        const file = Gio.File.new_for_path(credentialsPath);
-        file.load_contents_async(null, (file, result) => {
-            try {
-                const [, contents] = file.load_contents_finish(result);
-                const decoder = new TextDecoder('utf-8');
-                const json = JSON.parse(decoder.decode(contents));
-                const token = json.claudeAiOauth?.accessToken;
-
-                if (!token) {
-                    this._label.set_text('No token');
-                    this._fiveHourPercent.set_text('No credentials');
-                    this._sevenDayPercent.set_text('—');
-                    return;
-                }
-
-                this._fetchUsage(token);
-            } catch (e) {
-                console.error('Info Center: Failed to read credentials:', e.message);
-                this._label.set_text('No token');
-                this._fiveHourPercent.set_text('No credentials');
-                this._sevenDayPercent.set_text('—');
-            }
-        });
-    }
-
-    _fetchUsage(token) {
-        const message = Soup.Message.new('GET', API_URL);
-        message.request_headers.append('Authorization', `Bearer ${token}`);
-        message.request_headers.append('anthropic-beta', 'oauth-2025-04-20');
-
-        this._session.send_and_read_async(
-            message,
-            GLib.PRIORITY_DEFAULT,
-            null,
-            (session, result) => {
-                try {
-                    const bytes = session.send_and_read_finish(result);
-
-                    if (message.status_code !== 200) {
-                        this._label.set_text('Error');
-                        this._fiveHourPercent.set_text(`HTTP ${message.status_code}`);
-                        return;
-                    }
-
-                    const decoder = new TextDecoder('utf-8');
-                    const data = JSON.parse(decoder.decode(bytes.get_data()));
-
-                    this._updateDisplay(data);
-                } catch (e) {
-                    console.error('Info Center: Failed to fetch usage:', e.message);
-                    this._label.set_text('Error');
-                }
-            }
-        );
-    }
-
-    _updateDisplay(data) {
-        const fiveHour = data.five_hour?.utilization ?? 0;
-        const sevenDay = data.seven_day?.utilization ?? 0;
-
-        this._label.set_text(`${Math.round(fiveHour)}%`);
-
-        this._updatePanelProgressBar(fiveHour);
-
-        this._fiveHourPercent.set_text(`${fiveHour.toFixed(1)}%`);
-        this._updateProgressBar(this._fiveHourProgressBar, fiveHour);
-
-        this._sevenDayPercent.set_text(`${sevenDay.toFixed(1)}%`);
-        this._updateProgressBar(this._sevenDayProgressBar, sevenDay);
-
-        if (data.five_hour?.resets_at) {
-            this._fiveHourResetLabel.set_text(
-                `Resets in ${this._formatResetTime(data.five_hour.resets_at)}`
-            );
-        }
-
-        if (data.seven_day?.resets_at) {
-            this._sevenDayResetLabel.set_text(
-                `Resets in ${this._formatResetTime(data.seven_day.resets_at)}`
-            );
-        }
-    }
-
-    _refreshRedmine() {
-        if (!this._redmineItem) {
-            return;
-        }
-
-        const baseUrl = this._settings.get_string('redmine-url').trim().replace(/\/+$/, '');
-        const apiKey = this._settings.get_string('redmine-api-key').trim();
-        const projectIds = this._settings.get_strv('redmine-projects');
-        const allProjectTasks = this._settings.get_boolean('redmine-tasks-all-projects');
-
-        // Tasks can run with all-projects mode even without a selection; the
-        // monthly totals always need at least one selected project.
-        if (!baseUrl || !apiKey || (projectIds.length === 0 && !allProjectTasks)) {
-            this._redmineSeparator.hide();
-            this._redmineItem.hide();
-            this._redmineTodaySection.separator.hide();
-            this._redmineTodaySection.item.hide();
-            this._redmineTomorrowSection.separator.hide();
-            this._redmineTomorrowSection.item.hide();
-            return;
-        }
-
-        // Monthly time totals are project-scoped; skip (and hide) them when no
-        // project is selected, even though task sections still run.
-        if (projectIds.length > 0) {
-            const now = GLib.DateTime.new_now_local();
-            const from = `${now.get_year()}-${String(now.get_month()).padStart(2, '0')}-01`;
-            const to = now.format('%Y-%m-%d');
-            this._fetchRedmineTimeEntries(baseUrl, apiKey, from, to, 0, {}, {});
-        } else {
-            this._redmineSeparator.hide();
-            this._redmineItem.hide();
-        }
-
-        this._fetchRedmineIssues(baseUrl, apiKey, 0, []);
-    }
-
-    _fetchRedmineIssues(baseUrl, apiKey, offset, issues) {
-        if (!this._session) {
-            return;
-        }
-
-        const limit = 100;
-        const url = `${baseUrl}/issues.json?assigned_to_id=me&status_id=*` +
-            `&limit=${limit}&offset=${offset}`;
-        const message = Soup.Message.new('GET', url);
-        message.request_headers.append('X-Redmine-API-Key', apiKey);
-
-        this._session.send_and_read_async(
-            message,
-            GLib.PRIORITY_DEFAULT,
-            null,
-            (session, result) => {
-                try {
-                    const bytes = session.send_and_read_finish(result);
-
-                    if (message.status_code !== 200) {
-                        this._setRedmineIssuesMessage(`Error: HTTP ${message.status_code}`);
-                        return;
-                    }
-
-                    const decoder = new TextDecoder('utf-8');
-                    const data = JSON.parse(decoder.decode(bytes.get_data()));
-                    const page = data.issues ?? [];
-                    issues.push(...page);
-
-                    const totalCount = data.total_count ?? issues.length;
-                    const nextOffset = offset + limit;
-                    if (nextOffset < totalCount && page.length > 0) {
-                        this._fetchRedmineIssues(baseUrl, apiKey, nextOffset, issues);
-                    } else {
-                        this._updateRedmineIssuesDisplay(issues);
-                    }
-                } catch (e) {
-                    console.error('Info Center: Failed to fetch Redmine issues:', e.message);
-                    this._setRedmineIssuesMessage('Error fetching data');
-                }
-            }
-        );
-    }
-
-    _updateRedmineIssuesDisplay(issues) {
-        const allProjectTasks = this._settings.get_boolean('redmine-tasks-all-projects');
-        const projectIds = new Set(this._settings.get_strv('redmine-projects'));
-        const statusIds = new Set(this._settings.get_strv('redmine-statuses'));
-
-        const now = GLib.DateTime.new_now_local();
-        const today = now.format('%Y-%m-%d');
-        const tomorrow = now.add_days(1).format('%Y-%m-%d');
-
-        const todayIssues = [];
-        const tomorrowIssues = [];
-
-        for (const issue of issues) {
-            const projectId = String(issue.project?.id ?? '');
-            if (!allProjectTasks && !projectIds.has(projectId)) {
-                continue;
-            }
-
-            // No statuses selected → all statuses count.
-            const statusId = String(issue.status?.id ?? '');
-            if (statusIds.size > 0 && !statusIds.has(statusId)) {
-                continue;
-            }
-
-            const start = issue.start_date ?? null;
-            const due = issue.due_date ?? null;
-            if (!start && !due) {
-                continue;
-            }
-
-            // A multi-day task is "active" on every day of its span. With only
-            // one date set, the span collapses to that single day.
-            const spanStart = start ?? due;
-            const spanEnd = due ?? start;
-
-            // YYYY-MM-DD strings sort chronologically.
-            if (spanStart <= today && today <= spanEnd) {
-                todayIssues.push(issue);
-            }
-            if (spanStart <= tomorrow && tomorrow <= spanEnd) {
-                tomorrowIssues.push(issue);
-            }
-        }
-
-        this._setRedmineIssueRows(this._redmineTodaySection, todayIssues);
-        this._setRedmineIssueRows(this._redmineTomorrowSection, tomorrowIssues);
-    }
-
-    _setRedmineIssueRows(section, issues) {
-        section.rowsBox.destroy_all_children();
-
-        if (issues.length === 0) {
-            section.rowsBox.add_child(new St.Label({
-                text: 'No tasks',
-                style_class: 'info-center-reset-label',
-            }));
-        } else {
-            const baseUrl = this._settings.get_string('redmine-url')
-                .trim().replace(/\/+$/, '');
-
-            for (const issue of issues) {
-                const label = new St.Label({
-                    text: issue.subject ?? `#${issue.id}`,
-                    style_class: 'info-center-reset-label',
-                    y_align: Clutter.ActorAlign.CENTER,
-                });
-
-                // Clickable only when we know where to point the browser.
-                if (baseUrl) {
-                    const button = new St.Button({
-                        child: label,
-                        style_class: 'info-center-issue-button',
-                        x_align: Clutter.ActorAlign.START,
-                        can_focus: true,
-                    });
-                    button.connect('clicked', () => {
-                        Gio.AppInfo.launch_default_for_uri(
-                            `${baseUrl}/issues/${issue.id}`, null);
-                        this.menu.close();
-                    });
-                    section.rowsBox.add_child(button);
-                } else {
-                    section.rowsBox.add_child(label);
-                }
-            }
-        }
-
-        section.separator.show();
-        section.item.show();
-    }
-
-    _setRedmineIssuesMessage(text) {
-        for (const section of [this._redmineTodaySection, this._redmineTomorrowSection]) {
-            section.rowsBox.destroy_all_children();
-            section.rowsBox.add_child(new St.Label({
-                text,
-                style_class: 'info-center-reset-label',
-            }));
-            section.separator.show();
-            section.item.show();
-        }
-    }
-
-    _fetchRedmineTimeEntries(baseUrl, apiKey, from, to, offset, hoursByProject, namesByProject) {
-        if (!this._session) {
-            return;
-        }
-
-        const limit = 100;
-        const url = `${baseUrl}/time_entries.json?user_id=me` +
-            `&from=${from}&to=${to}&limit=${limit}&offset=${offset}`;
-        const message = Soup.Message.new('GET', url);
-        message.request_headers.append('X-Redmine-API-Key', apiKey);
-
-        this._session.send_and_read_async(
-            message,
-            GLib.PRIORITY_DEFAULT,
-            null,
-            (session, result) => {
-                try {
-                    const bytes = session.send_and_read_finish(result);
-
-                    if (message.status_code !== 200) {
-                        this._setRedmineMessage(`Error: HTTP ${message.status_code}`);
-                        return;
-                    }
-
-                    const decoder = new TextDecoder('utf-8');
-                    const data = JSON.parse(decoder.decode(bytes.get_data()));
-                    const entries = data.time_entries ?? [];
-
-                    for (const entry of entries) {
-                        const id = String(entry.project?.id ?? '');
-                        if (id) {
-                            hoursByProject[id] = (hoursByProject[id] ?? 0) + (entry.hours ?? 0);
-                            if (entry.project?.name) {
-                                namesByProject[id] = entry.project.name;
-                            }
-                        }
-                    }
-
-                    const totalCount = data.total_count ?? entries.length;
-                    const nextOffset = offset + limit;
-                    if (nextOffset < totalCount) {
-                        this._fetchRedmineTimeEntries(
-                            baseUrl, apiKey, from, to, nextOffset, hoursByProject, namesByProject
-                        );
-                    } else {
-                        this._updateRedmineDisplay(hoursByProject, namesByProject);
-                    }
-                } catch (e) {
-                    console.error('Info Center: Failed to fetch Redmine time entries:', e.message);
-                    this._setRedmineMessage('Error fetching data');
-                }
-            }
-        );
-    }
-
-    _updateRedmineDisplay(hoursByProject, namesByProject = {}) {
-        const projectIds = this._settings.get_strv('redmine-projects');
-        const storedNames = this._settings.get_value('redmine-project-names').deep_unpack();
-
-        this._redmineRowsBox.destroy_all_children();
-
-        for (const id of projectIds) {
-            const name = namesByProject[id] ?? storedNames[id] ?? `Project #${id}`;
-            const hours = hoursByProject[id] ?? 0;
-
-            const row = new St.BoxLayout({ vertical: false });
-            const nameLabel = new St.Label({
-                text: name,
-                style_class: 'info-center-reset-label',
-                y_align: Clutter.ActorAlign.CENTER,
-            });
-            row.add_child(nameLabel);
-
-            const valueLabel = new St.Label({
-                text: this._formatHours(hours),
-                style_class: 'info-center-percent-label',
-                x_expand: true,
-                x_align: Clutter.ActorAlign.END,
-                y_align: Clutter.ActorAlign.CENTER,
-            });
-            row.add_child(valueLabel);
-
-            this._redmineRowsBox.add_child(row);
-        }
-
-        this._redmineSeparator.show();
-        this._redmineItem.show();
-    }
-
-    _setRedmineMessage(text) {
-        this._redmineRowsBox.destroy_all_children();
-        this._redmineRowsBox.add_child(new St.Label({
-            text,
-            style_class: 'info-center-reset-label',
-        }));
-        this._redmineSeparator.show();
-        this._redmineItem.show();
-    }
-
-    _formatHours(hours) {
-        const totalMinutes = Math.round(hours * 60);
-        const h = Math.floor(totalMinutes / 60);
-        const m = totalMinutes % 60;
-        return `${h}:${String(m).padStart(2, '0')}`;
-    }
-
-    _updatePanelProgressBar(usage) {
-        const maxWidth = 50;
-        const width = Math.round((Math.min(100, Math.max(0, usage)) / 100) * maxWidth);
-        this._panelProgressBar.set_width(width);
-    }
-
-    _updateProgressBar(progressBar, usage) {
-        const maxWidth = 200;
-        const width = Math.round((Math.min(100, Math.max(0, usage)) / 100) * maxWidth);
-        progressBar.set_width(width);
-
-        progressBar.remove_style_class_name('usage-low');
-        progressBar.remove_style_class_name('usage-medium');
-        progressBar.remove_style_class_name('usage-high');
-        progressBar.remove_style_class_name('usage-critical');
-
-        if (usage >= 90) {
-            progressBar.add_style_class_name('usage-critical');
-        } else if (usage >= 70) {
-            progressBar.add_style_class_name('usage-high');
-        } else if (usage >= 40) {
-            progressBar.add_style_class_name('usage-medium');
-        } else {
-            progressBar.add_style_class_name('usage-low');
-        }
-    }
-
-    _formatResetTime(isoString) {
-        try {
-            const resetDate = new Date(isoString);
-            const now = new Date();
-            const diffMs = resetDate - now;
-
-            if (diffMs < 0) {
-                return 'now';
-            }
-
-            const diffMins = Math.floor(diffMs / 60000);
-            const diffHours = Math.floor(diffMins / 60);
-            const diffDays = Math.floor(diffHours / 24);
-
-            if (diffDays > 0) {
-                return `${diffDays}d ${diffHours % 24}h`;
-            } else if (diffHours > 0) {
-                return `${diffHours}h ${diffMins % 60}m`;
-            } else {
-                return `${diffMins}m`;
-            }
-        } catch (e) {
-            return '—';
-        }
     }
 
     destroy() {

@@ -9,6 +9,7 @@ A GNOME Shell extension that displays your Claude Code API usage percentage in t
 
 - **Real-time usage monitoring** - View your 5-hour and 7-day Claude Code usage
 - **Redmine time tracking** - Show this month's logged hours per project in the dropdown menu
+- **Redmine task lists** - Show issues assigned to you that are due today and tomorrow, with optional status filtering, clickable straight to Redmine
 - **Settings menu** - Change the layout or the refresh time
 
 ## Requirements
@@ -37,7 +38,14 @@ to the **Redmine** tab:
 2. Enter your **API Key** (Redmine → *My account* → *API access key*) and click apply.
 3. Click **Fetch projects** and tick the projects you want to track.
 
+The dropdown also lists the issues assigned to you that fall due **today** and
+**tomorrow** (by their start/due date span). Use the **Status** filter to limit
+these lists to specific issue statuses, and the **all projects** toggle to include
+tasks from every project rather than only the ones ticked above. Each issue is a
+link that opens it in Redmine.
+
 Leave the Server URL empty to disable the integration — the Redmine section is
-hidden from the panel menu until a URL, API key, and at least one project are set.
-Time entries are fetched for the current user (`user_id=me`) from the first day of
-the month through today, and refreshed on the same interval as the usage data.
+hidden from the panel menu until a URL, API key, and (for the monthly time totals)
+at least one project are set. Time entries are fetched for the current user
+(`user_id=me`) from the first day of the month through today, and everything is
+refreshed on the same interval as the usage data.
