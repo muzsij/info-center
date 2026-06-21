@@ -69,6 +69,7 @@ export class ClaudeUsage {
     // Set the panel label and both dropdown percent labels in one go. Used for
     // the various "no data" states so they stay consistent in one place.
     _setMessage(label, fiveHour, sevenDay) {
+        this._label.remove_style_class_name('info-center-refreshing');
         this._label.set_text(label);
         this._fiveHourPercent.set_text(fiveHour);
         this._sevenDayPercent.set_text(sevenDay);
@@ -80,8 +81,11 @@ export class ClaudeUsage {
     // Otherwise show a neutral placeholder rather than a scary "Error".
     _showRefreshing() {
         if (this._hasData) {
-            this._fiveHourResetLabel?.set_text('Refreshing…');
-            this._sevenDayResetLabel?.set_text('Refreshing…');
+            // Dim the panel number so the always-visible last-good percentage
+            // isn't silently presented as current while we re-check the token.
+            this._label.add_style_class_name('info-center-refreshing');
+            this._fiveHourResetLabel.set_text('Refreshing…');
+            this._sevenDayResetLabel.set_text('Refreshing…');
             return;
         }
         this._label.set_text('…');
@@ -294,6 +298,7 @@ export class ClaudeUsage {
                         return;
                     }
                     console.error('Info Center: Failed to fetch usage:', e.message);
+                    this._label.remove_style_class_name('info-center-refreshing');
                     this._label.set_text('Error');
                 }
             }
@@ -303,6 +308,10 @@ export class ClaudeUsage {
     _updateDisplay(data) {
         this._authRetries = 0;
         this._hasData = true;
+        // Fresh data is in hand: cancel any pending stale-token poll so it
+        // doesn't fire a redundant refresh, and drop the refreshing cue.
+        this._clearRetry();
+        this._label.remove_style_class_name('info-center-refreshing');
 
         const fiveHour = data.five_hour?.utilization ?? 0;
         const sevenDay = data.seven_day?.utilization ?? 0;
@@ -317,16 +326,22 @@ export class ClaudeUsage {
         this._sevenDayPercent.set_text(`${sevenDay.toFixed(1)}%`);
         this._updateProgressBar(this._sevenDayProgressBar, sevenDay);
 
+        // Always rewrite the reset labels — otherwise a "Refreshing…" left by
+        // _showRefreshing persists when a successful response omits resets_at.
         if (data.five_hour?.resets_at) {
             this._fiveHourResetLabel.set_text(
                 `Resets in ${this._formatResetTime(data.five_hour.resets_at)}`
             );
+        } else {
+            this._fiveHourResetLabel.set_text('—');
         }
 
         if (data.seven_day?.resets_at) {
             this._sevenDayResetLabel.set_text(
                 `Resets in ${this._formatResetTime(data.seven_day.resets_at)}`
             );
+        } else {
+            this._sevenDayResetLabel.set_text('—');
         }
     }
 

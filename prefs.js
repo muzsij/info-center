@@ -7,6 +7,15 @@ import Soup from 'gi://Soup';
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 export default class InfoCenterPreferences extends ExtensionPreferences {
+    // One Soup session reused by the project / status fetches, instead of a new
+    // one per click (the prefs process is short-lived, but no reason to leak).
+    _prefsSession() {
+        if (!this._session) {
+            this._session = new Soup.Session();
+        }
+        return this._session;
+    }
+
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
 
@@ -64,6 +73,31 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
             Gio.SettingsBindFlags.DEFAULT
         );
         placementGroup.add(priorityRow);
+
+        const networkGroup = new Adw.PreferencesGroup({
+            title: 'Network',
+            description: 'Proxy used for all outgoing requests (Claude and Redmine)',
+        });
+        page.add(networkGroup);
+
+        const proxyRow = new Adw.EntryRow({
+            title: 'Proxy URL',
+            show_apply_button: true,
+        });
+        proxyRow.set_text(settings.get_string('proxy-url'));
+        proxyRow.connect('apply', () => {
+            settings.set_string('proxy-url', proxyRow.get_text());
+        });
+        networkGroup.add(proxyRow);
+
+        const proxyHint = new Gtk.Label({
+            label: 'Example: http://localhost:11809 (leave empty for no proxy)',
+            xalign: 0,
+            css_classes: ['dim-label', 'caption'],
+            margin_start: 12,
+            margin_top: 4,
+        });
+        networkGroup.add(proxyHint);
     }
 
     _buildClaudePage(window, settings) {
@@ -158,31 +192,6 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
             Gio.SettingsBindFlags.DEFAULT
         );
         displayGroup.add(showIconRow);
-
-        const networkGroup = new Adw.PreferencesGroup({
-            title: 'Network',
-            description: 'Configure network settings',
-        });
-        page.add(networkGroup);
-
-        const proxyRow = new Adw.EntryRow({
-            title: 'Proxy URL',
-            show_apply_button: true,
-        });
-        proxyRow.set_text(settings.get_string('proxy-url'));
-        proxyRow.connect('apply', () => {
-            settings.set_string('proxy-url', proxyRow.get_text());
-        });
-        networkGroup.add(proxyRow);
-
-        const proxyHint = new Gtk.Label({
-            label: 'Example: http://localhost:11809 (leave empty for no proxy)',
-            xalign: 0,
-            css_classes: ['dim-label', 'caption'],
-            margin_start: 12,
-            margin_top: 4,
-        });
-        networkGroup.add(proxyHint);
     }
 
     _buildRedminePage(window, settings) {
@@ -319,7 +328,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         statusRows.length = 0;
 
         const url = `${baseUrl}/issue_statuses.json`;
-        const session = new Soup.Session();
+        const session = this._prefsSession();
         const message = Soup.Message.new('GET', url);
         message.request_headers.append('X-Redmine-API-Key', apiKey);
 
@@ -407,7 +416,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         setStatus('Fetching projects…');
 
         const url = `${baseUrl}/projects.json?limit=100`;
-        const session = new Soup.Session();
+        const session = this._prefsSession();
         const message = Soup.Message.new('GET', url);
         message.request_headers.append('X-Redmine-API-Key', apiKey);
 

@@ -8,6 +8,11 @@
     font-weight: bold;
 }
 
+/* Dimmed panel number while re-checking a stale token (see _showRefreshing) */
+.info-center-refreshing {
+    color: #a0a0a0;
+}
+
 /* Panel progress bar */
 .info-center-panel-progress-bg {
     background-color: rgba(255, 255, 255, 0.2);
@@ -100,32 +105,4 @@
 .info-center-reset-label {
     font-size: 11px;
     color: #a0a0a0;
-}
-
-/* Footer styles */
-.info-center-footer-box {
-    padding: 6px 0;
-    spacing: 12px;
-}
-
-.info-center-refresh-button {
-    padding: 4px 12px;
-    border-radius: 4px;
-    background-color: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
-    font-size: 12px;
-}
-
-.info-center-refresh-button:hover {
-    background-color: rgba(255, 255, 255, 0.2);
-}
-
-.info-center-refresh-button:active {
-    background-color: rgba(255, 255, 255, 0.15);
-}
-
-.info-center-last-updated-label {
-    font-size: 10px;
-    font-style: italic;
-    color: #808080;
 }

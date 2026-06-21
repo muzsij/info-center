@@ -15,6 +15,14 @@ export class Redmine {
     constructor(settings, getSession) {
         this._settings = settings;
         this._getSession = getSession;
+        this._cancellable = null;
+    }
+
+    destroy() {
+        // Cancel any in-flight issues / time-entries fetch so its callback
+        // doesn't touch the menu widgets super.destroy() is about to dispose.
+        this._cancellable?.cancel();
+        this._cancellable = null;
     }
 
     buildMenu(menu) {
@@ -96,6 +104,14 @@ export class Redmine {
             return;
         }
 
+        // Cancel any in-flight fetch first, so overlapping refreshes (a timer
+        // tick and a redmine-* settings change can both land here) don't race
+        // to the display, and so teardown can stop work that would otherwise
+        // touch the menu widgets after they're destroyed.
+        this._cancellable?.cancel();
+        this._cancellable = new Gio.Cancellable();
+        const cancellable = this._cancellable;
+
         const baseUrl = this._settings.get_string('redmine-url').trim().replace(/\/+$/, '');
         const apiKey = this._settings.get_string('redmine-api-key').trim();
         const projectIds = this._settings.get_strv('redmine-projects');
@@ -119,16 +135,16 @@ export class Redmine {
             const now = GLib.DateTime.new_now_local();
             const from = `${now.get_year()}-${String(now.get_month()).padStart(2, '0')}-01`;
             const to = now.format('%Y-%m-%d');
-            this._fetchTimeEntries(baseUrl, apiKey, from, to, 0, {}, {});
+            this._fetchTimeEntries(baseUrl, apiKey, from, to, 0, {}, {}, cancellable);
         } else {
             this._separator.hide();
             this._item.hide();
         }
 
-        this._fetchIssues(baseUrl, apiKey, 0, []);
+        this._fetchIssues(baseUrl, apiKey, 0, [], cancellable);
     }
 
-    _fetchIssues(baseUrl, apiKey, offset, issues) {
+    _fetchIssues(baseUrl, apiKey, offset, issues, cancellable) {
         const session = this._getSession();
         if (!session) {
             return;
@@ -143,8 +159,11 @@ export class Redmine {
         session.send_and_read_async(
             message,
             GLib.PRIORITY_DEFAULT,
-            null,
+            cancellable,
             (session, result) => {
+                if (cancellable.is_cancelled()) {
+                    return;
+                }
                 try {
                     const bytes = session.send_and_read_finish(result);
 
@@ -161,11 +180,14 @@ export class Redmine {
                     const totalCount = data.total_count ?? issues.length;
                     const nextOffset = offset + limit;
                     if (nextOffset < totalCount && page.length > 0) {
-                        this._fetchIssues(baseUrl, apiKey, nextOffset, issues);
+                        this._fetchIssues(baseUrl, apiKey, nextOffset, issues, cancellable);
                     } else {
                         this._updateIssuesDisplay(issues);
                     }
                 } catch (e) {
+                    if (e.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
+                        return;
+                    }
                     console.error('Info Center: Failed to fetch Redmine issues:', e.message);
                     this._setIssuesMessage('Error fetching data');
                 }
@@ -276,7 +298,7 @@ export class Redmine {
         }
     }
 
-    _fetchTimeEntries(baseUrl, apiKey, from, to, offset, hoursByProject, namesByProject) {
+    _fetchTimeEntries(baseUrl, apiKey, from, to, offset, hoursByProject, namesByProject, cancellable) {
         const session = this._getSession();
         if (!session) {
             return;
@@ -291,8 +313,11 @@ export class Redmine {
         session.send_and_read_async(
             message,
             GLib.PRIORITY_DEFAULT,
-            null,
+            cancellable,
             (session, result) => {
+                if (cancellable.is_cancelled()) {
+                    return;
+                }
                 try {
                     const bytes = session.send_and_read_finish(result);
 
@@ -317,14 +342,18 @@ export class Redmine {
 
                     const totalCount = data.total_count ?? entries.length;
                     const nextOffset = offset + limit;
-                    if (nextOffset < totalCount) {
+                    if (nextOffset < totalCount && entries.length > 0) {
                         this._fetchTimeEntries(
-                            baseUrl, apiKey, from, to, nextOffset, hoursByProject, namesByProject
+                            baseUrl, apiKey, from, to, nextOffset,
+                            hoursByProject, namesByProject, cancellable
                         );
                     } else {
                         this._updateDisplay(hoursByProject, namesByProject);
                     }
                 } catch (e) {
+                    if (e.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
+                        return;
+                    }
                     console.error('Info Center: Failed to fetch Redmine time entries:', e.message);
                     this._setMessage('Error fetching data');
                 }

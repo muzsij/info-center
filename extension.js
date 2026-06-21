@@ -89,7 +89,9 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 key === 'redmine-statuses' ||
                 key === 'redmine-tasks-all-projects'
             ) {
-                this._redmine.refresh();
+                // Toggling project/status checkboxes in prefs writes a key per
+                // click; debounce so a flurry of changes triggers one fetch.
+                this._scheduleRedmineRefresh();
             }
         });
 
@@ -157,6 +159,24 @@ class InfoCenterIndicator extends PanelMenu.Button {
         }
         this._session = this._createSession();
         this._claude.refresh();
+        this._redmine.refresh();
+    }
+
+    // Coalesce rapid redmine-* settings changes (e.g. ticking several project
+    // checkboxes in prefs) into a single refresh.
+    _scheduleRedmineRefresh() {
+        if (this._redmineRefreshId) {
+            GLib.source_remove(this._redmineRefreshId);
+        }
+        this._redmineRefreshId = GLib.timeout_add(
+            GLib.PRIORITY_DEFAULT,
+            400,
+            () => {
+                this._redmineRefreshId = null;
+                this._redmine.refresh();
+                return GLib.SOURCE_REMOVE;
+            }
+        );
     }
 
     _updateIconStyle() {
@@ -203,7 +223,12 @@ class InfoCenterIndicator extends PanelMenu.Button {
 
     destroy() {
         this._stopTimer();
+        if (this._redmineRefreshId) {
+            GLib.source_remove(this._redmineRefreshId);
+            this._redmineRefreshId = null;
+        }
         this._claude.destroy();
+        this._redmine.destroy();
         if (this._session) {
             this._session.abort();
             this._session = null;
