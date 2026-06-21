@@ -203,6 +203,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
 
     destroy() {
         this._stopTimer();
+        this._claude.destroy();
         if (this._session) {
             this._session.abort();
             this._session = null;
