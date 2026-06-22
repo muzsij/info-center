@@ -72,7 +72,9 @@ class InfoCenterIndicator extends PanelMenu.Button {
 
         this._settingsChangedId = this._settings.connect('changed', (settings, key) => {
             if (key === 'refresh-interval') {
-                this._restartTimer();
+                this._restartClaudeTimer();
+            } else if (key === 'redmine-refresh-interval') {
+                this._restartRedmineTimer();
             } else if (key === 'display-mode') {
                 this._updateDisplayMode();
             } else if (key === 'show-icon') {
@@ -97,7 +99,8 @@ class InfoCenterIndicator extends PanelMenu.Button {
 
         this._claude.refresh();
         this._redmine.refresh();
-        this._startTimer();
+        this._startClaudeTimer();
+        this._startRedmineTimer();
     }
 
     _createMenu() {
@@ -196,33 +199,57 @@ class InfoCenterIndicator extends PanelMenu.Button {
         }
     }
 
-    _startTimer() {
+    _startClaudeTimer() {
         const interval = this._settings.get_int('refresh-interval');
-        this._timerId = GLib.timeout_add_seconds(
+        this._claudeTimerId = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT,
             interval,
             () => {
                 this._claude.refresh();
+                return GLib.SOURCE_CONTINUE;
+            }
+        );
+    }
+
+    _stopClaudeTimer() {
+        if (this._claudeTimerId) {
+            GLib.source_remove(this._claudeTimerId);
+            this._claudeTimerId = null;
+        }
+    }
+
+    _restartClaudeTimer() {
+        this._stopClaudeTimer();
+        this._startClaudeTimer();
+    }
+
+    _startRedmineTimer() {
+        const interval = this._settings.get_int('redmine-refresh-interval');
+        this._redmineTimerId = GLib.timeout_add_seconds(
+            GLib.PRIORITY_DEFAULT,
+            interval,
+            () => {
                 this._redmine.refresh();
                 return GLib.SOURCE_CONTINUE;
             }
         );
     }
 
-    _stopTimer() {
-        if (this._timerId) {
-            GLib.source_remove(this._timerId);
-            this._timerId = null;
+    _stopRedmineTimer() {
+        if (this._redmineTimerId) {
+            GLib.source_remove(this._redmineTimerId);
+            this._redmineTimerId = null;
         }
     }
 
-    _restartTimer() {
-        this._stopTimer();
-        this._startTimer();
+    _restartRedmineTimer() {
+        this._stopRedmineTimer();
+        this._startRedmineTimer();
     }
 
     destroy() {
-        this._stopTimer();
+        this._stopClaudeTimer();
+        this._stopRedmineTimer();
         if (this._redmineRefreshId) {
             GLib.source_remove(this._redmineRefreshId);
             this._redmineRefreshId = null;

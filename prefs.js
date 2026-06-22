@@ -201,6 +201,31 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         });
         window.add(page);
 
+        const generalGroup = new Adw.PreferencesGroup({
+            title: 'General',
+            description: 'Configure how Redmine data is refreshed',
+        });
+        page.add(generalGroup);
+
+        const refreshRow = new Adw.SpinRow({
+            title: 'Refresh Interval',
+            subtitle: 'How often to refresh Redmine data (in seconds)',
+            adjustment: new Gtk.Adjustment({
+                lower: 10,
+                upper: 600,
+                step_increment: 10,
+                page_increment: 60,
+                value: settings.get_int('redmine-refresh-interval'),
+            }),
+        });
+        settings.bind(
+            'redmine-refresh-interval',
+            refreshRow,
+            'value',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        generalGroup.add(refreshRow);
+
         const connectionGroup = new Adw.PreferencesGroup({
             title: 'Connection',
             description: 'Configure access to your Redmine server',

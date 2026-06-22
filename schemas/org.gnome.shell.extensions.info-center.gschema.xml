@@ -3,8 +3,13 @@
   <schema id="org.gnome.shell.extensions.info-center" path="/org/gnome/shell/extensions/info-center/">
     <key name="refresh-interval" type="i">
       <default>300</default>
-      <summary>Refresh interval</summary>
-      <description>How often to refresh usage data in seconds</description>
+      <summary>Claude refresh interval</summary>
+      <description>How often to refresh Claude usage data in seconds</description>
+    </key>
+    <key name="redmine-refresh-interval" type="i">
+      <default>300</default>
+      <summary>Redmine refresh interval</summary>
+      <description>How often to refresh Redmine data in seconds</description>
     </key>
     <key name="display-mode" type="s">
       <default>'text'</default>
