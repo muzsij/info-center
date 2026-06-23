@@ -111,11 +111,28 @@ class InfoCenterIndicator extends PanelMenu.Button {
         footerSeparator.add_style_class_name('info-center-separator');
         this.menu.addMenuItem(footerSeparator);
 
+        const refreshItem = new PopupMenu.PopupMenuItem('Refresh Now');
+        // Override activate() instead of connecting to its 'activate' signal so
+        // the menu stays open — the base activate() is what tells the menu to
+        // close, and here we want the user to watch the sections refresh in place.
+        refreshItem.activate = () => this._refreshNow();
+        this.menu.addMenuItem(refreshItem);
+
         const settingsItem = new PopupMenu.PopupMenuItem('Settings');
         settingsItem.connect('activate', () => {
             this._openPreferences();
         });
         this.menu.addMenuItem(settingsItem);
+    }
+
+    // Manual refresh: fetch both feature modules now and reset both refresh
+    // timers so the next automatic tick lands a full interval after this manual
+    // refresh, instead of firing redundantly moments later.
+    _refreshNow() {
+        this._claude.refresh();
+        this._redmine.refresh();
+        this._restartClaudeTimer();
+        this._restartRedmineTimer();
     }
 
     _updateDisplayMode() {
