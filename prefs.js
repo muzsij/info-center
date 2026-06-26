@@ -22,6 +22,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         this._buildSettingsPage(window, settings);
         this._buildClaudePage(window, settings);
         this._buildRedminePage(window, settings);
+        this._buildHubstaffPage(window, settings);
     }
 
     _buildSettingsPage(window, settings) {
@@ -337,6 +338,87 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
                 fetchAll();
             }
         });
+    }
+
+    _buildHubstaffPage(window, settings) {
+        const page = new Adw.PreferencesPage({
+            title: 'Hubstaff',
+            icon_name: 'preferences-desktop-time-symbolic',
+        });
+        window.add(page);
+
+        const generalGroup = new Adw.PreferencesGroup({
+            title: 'General',
+            description: 'Configure how Hubstaff data is refreshed',
+        });
+        page.add(generalGroup);
+
+        const refreshRow = new Adw.SpinRow({
+            title: 'Refresh Interval',
+            subtitle: 'How often to refresh Hubstaff data (in seconds)',
+            adjustment: new Gtk.Adjustment({
+                lower: 10,
+                upper: 600,
+                step_increment: 10,
+                page_increment: 60,
+                value: settings.get_int('hubstaff-refresh-interval'),
+            }),
+        });
+        settings.bind(
+            'hubstaff-refresh-interval',
+            refreshRow,
+            'value',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        generalGroup.add(refreshRow);
+
+        const connectionGroup = new Adw.PreferencesGroup({
+            title: 'Connection',
+            description: 'Authenticate with the Hubstaff API',
+        });
+        page.add(connectionGroup);
+
+        const tokenRow = new Adw.PasswordEntryRow({
+            title: 'Personal Access Token',
+            show_apply_button: true,
+        });
+        // Show the seed PAT, not the rotated token — that is the value the user
+        // pasted and recognizes.
+        tokenRow.set_text(settings.get_string('hubstaff-personal-access-token'));
+        tokenRow.connect('apply', () => {
+            const token = tokenRow.get_text().trim();
+            const prev = settings.get_string('hubstaff-personal-access-token');
+            // A new seed invalidates any rotated/cached token from the old one;
+            // clear them first so the next refresh exchanges with the new PAT.
+            // These keys are not watched in extension.js, so only the seed write
+            // below triggers a refresh.
+            settings.set_string('hubstaff-refresh-token', '');
+            settings.set_string('hubstaff-access-token', '');
+            settings.set_int64('hubstaff-token-expires-at', 0);
+            // Re-applying the SAME PAT (e.g. to recover from an auth error) would
+            // write an identical value, which dconf suppresses — no 'changed'
+            // signal, so extension.js never re-runs the refresh. Force a value
+            // transition by clearing the seed to '' first so the write below
+            // always re-triggers.
+            if (prev === token) {
+                settings.set_string('hubstaff-personal-access-token', '');
+            }
+            settings.set_string('hubstaff-personal-access-token', token);
+        });
+        connectionGroup.add(tokenRow);
+
+        const tokenHint = new Gtk.Label({
+            label: 'Create one at developer.hubstaff.com → Personal access ' +
+                'tokens, with the hubstaff:read scope (leave empty to disable). ' +
+                'The token is a long-lived refresh token; the extension rotates ' +
+                'it automatically.',
+            xalign: 0,
+            wrap: true,
+            css_classes: ['dim-label', 'caption'],
+            margin_start: 12,
+            margin_top: 4,
+        });
+        connectionGroup.add(tokenHint);
     }
 
     _fetchStatuses(settings, statusesGroup, statusRows) {

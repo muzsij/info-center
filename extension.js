@@ -13,6 +13,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {ClaudeUsage} from './claudeUsage.js';
 import {Redmine} from './redmine.js';
+import {Hubstaff} from './hubstaff.js';
 
 const InfoCenterIndicator = GObject.registerClass(
 class InfoCenterIndicator extends PanelMenu.Button {
@@ -63,6 +64,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._claude = new ClaudeUsage(
             this._settings, getSession, this._label, this._panelProgressBar);
         this._redmine = new Redmine(this._settings, getSession);
+        this._hubstaff = new Hubstaff(this._settings, getSession);
 
         this._createMenu();
 
@@ -75,6 +77,13 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 this._restartClaudeTimer();
             } else if (key === 'redmine-refresh-interval') {
                 this._restartRedmineTimer();
+            } else if (key === 'hubstaff-refresh-interval') {
+                this._restartHubstaffTimer();
+            } else if (key === 'hubstaff-personal-access-token') {
+                // The user-entered seed PAT changed (the rotating token and the
+                // access-token cache are written by us and are not watched here,
+                // so token rotation does not retrigger a refresh).
+                this._hubstaff.refresh();
             } else if (key === 'display-mode') {
                 this._updateDisplayMode();
             } else if (key === 'show-icon') {
@@ -99,13 +108,16 @@ class InfoCenterIndicator extends PanelMenu.Button {
 
         this._claude.refresh();
         this._redmine.refresh();
+        this._hubstaff.refresh();
         this._startClaudeTimer();
         this._startRedmineTimer();
+        this._startHubstaffTimer();
     }
 
     _createMenu() {
         this._claude.buildMenu(this.menu);
         this._redmine.buildMenu(this.menu);
+        this._hubstaff.buildMenu(this.menu);
 
         const footerSeparator = new PopupMenu.PopupSeparatorMenuItem();
         footerSeparator.add_style_class_name('info-center-separator');
@@ -131,8 +143,10 @@ class InfoCenterIndicator extends PanelMenu.Button {
     _refreshNow() {
         this._claude.refresh();
         this._redmine.refresh();
+        this._hubstaff.refresh();
         this._restartClaudeTimer();
         this._restartRedmineTimer();
+        this._restartHubstaffTimer();
     }
 
     _updateDisplayMode() {
@@ -174,12 +188,19 @@ class InfoCenterIndicator extends PanelMenu.Button {
     }
 
     _recreateSession() {
-        if (this._session) {
-            this._session.abort();
-        }
+        // Deliberately do NOT abort() the old session here. abort() cancels
+        // every in-flight request on it, including Hubstaff's refresh-token
+        // exchange — which is intentionally run under its own cancellable that
+        // refresh() never touches, precisely because losing the rotated token in
+        // its response permanently bricks auth. Each module instead cancels its
+        // own in-flight data fetch via its per-module cancellable when the
+        // refresh() calls below run, so the old session drains cleanly and is
+        // GC'd once its requests finish; only the token exchange survives, as
+        // intended.
         this._session = this._createSession();
         this._claude.refresh();
         this._redmine.refresh();
+        this._hubstaff.refresh();
     }
 
     // Coalesce rapid redmine-* settings changes (e.g. ticking several project
@@ -264,15 +285,41 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._startRedmineTimer();
     }
 
+    _startHubstaffTimer() {
+        const interval = this._settings.get_int('hubstaff-refresh-interval');
+        this._hubstaffTimerId = GLib.timeout_add_seconds(
+            GLib.PRIORITY_DEFAULT,
+            interval,
+            () => {
+                this._hubstaff.refresh();
+                return GLib.SOURCE_CONTINUE;
+            }
+        );
+    }
+
+    _stopHubstaffTimer() {
+        if (this._hubstaffTimerId) {
+            GLib.source_remove(this._hubstaffTimerId);
+            this._hubstaffTimerId = null;
+        }
+    }
+
+    _restartHubstaffTimer() {
+        this._stopHubstaffTimer();
+        this._startHubstaffTimer();
+    }
+
     destroy() {
         this._stopClaudeTimer();
         this._stopRedmineTimer();
+        this._stopHubstaffTimer();
         if (this._redmineRefreshId) {
             GLib.source_remove(this._redmineRefreshId);
             this._redmineRefreshId = null;
         }
         this._claude.destroy();
         this._redmine.destroy();
+        this._hubstaff.destroy();
         if (this._session) {
             this._session.abort();
             this._session = null;

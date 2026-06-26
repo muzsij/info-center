@@ -40,11 +40,24 @@ export class Redmine {
             style_class: 'info-center-usage-section',
             vertical: true,
         });
+        // Title row: heading on the left, the running month total on the right.
+        const titleRow = new St.BoxLayout({ vertical: false });
         const title = new St.Label({
             text: 'Redmine time — this month',
             style_class: 'info-center-section-title',
+            y_align: Clutter.ActorAlign.CENTER,
         });
-        this._box.add_child(title);
+        titleRow.add_child(title);
+
+        this._totalLabel = new St.Label({
+            text: '',
+            style_class: 'info-center-section-title',
+            x_expand: true,
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        titleRow.add_child(this._totalLabel);
+        this._box.add_child(titleRow);
 
         this._rowsBox = new St.BoxLayout({
             vertical: true,
@@ -367,6 +380,10 @@ export class Redmine {
 
         this._rowsBox.destroy_all_children();
 
+        const total = projectIds.reduce(
+            (sum, id) => sum + (hoursByProject[id] ?? 0), 0);
+        this._totalLabel.set_text(total > 0 ? this._formatHours(total) : '');
+
         for (const id of projectIds) {
             const name = namesByProject[id] ?? storedNames[id] ?? `Project #${id}`;
             const hours = hoursByProject[id] ?? 0;
@@ -396,6 +413,7 @@ export class Redmine {
     }
 
     _setMessage(text) {
+        this._totalLabel.set_text('');
         this._rowsBox.destroy_all_children();
         this._rowsBox.add_child(new St.Label({
             text,

@@ -76,5 +76,30 @@
       <summary>Show tasks from all projects</summary>
       <description>When enabled, the Today and Tomorrow task sections show issues from every project assigned to you, ignoring the selected projects. The monthly time totals still follow the selected projects.</description>
     </key>
+    <key name="hubstaff-refresh-interval" type="i">
+      <default>300</default>
+      <summary>Hubstaff refresh interval</summary>
+      <description>How often to refresh Hubstaff data in seconds</description>
+    </key>
+    <key name="hubstaff-personal-access-token" type="s">
+      <default>''</default>
+      <summary>Hubstaff personal access token</summary>
+      <description>Hubstaff personal access token (a long-lived refresh token created at developer.hubstaff.com) used to authenticate with the Hubstaff API. Leave empty to disable. This is the user-entered seed; the rotating token is stored separately in hubstaff-refresh-token.</description>
+    </key>
+    <key name="hubstaff-refresh-token" type="s">
+      <default>''</default>
+      <summary>Hubstaff rotating refresh token</summary>
+      <description>The current Hubstaff refresh token. Hubstaff rotates the refresh token on every access-token exchange, so this is written back by the extension and supersedes hubstaff-personal-access-token once set. Cleared when a new personal access token is entered.</description>
+    </key>
+    <key name="hubstaff-access-token" type="s">
+      <default>''</default>
+      <summary>Hubstaff access token cache</summary>
+      <description>Cached short-lived Hubstaff access token, reused until it is close to expiry to avoid exchanging the refresh token on every refresh.</description>
+    </key>
+    <key name="hubstaff-token-expires-at" type="x">
+      <default>0</default>
+      <summary>Hubstaff access token expiry</summary>
+      <description>Unix time (seconds) at which the cached Hubstaff access token expires.</description>
+    </key>
   </schema>
 </schemalist>
