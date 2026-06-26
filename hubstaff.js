@@ -6,6 +6,8 @@ import Soup from 'gi://Soup';
 
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
+import {Tooltip, formatMoney} from './tooltip.js';
+
 const TOKEN_URL = 'https://account.hubstaff.com/access_tokens';
 const API_BASE = 'https://api.hubstaff.com/v2';
 
@@ -42,6 +44,14 @@ export class Hubstaff {
         // the single in-flight exchange rather than each starting their own.
         this._tokenCancellable = null;
         this._tokenWaiters = [];
+        // Floating earnings tooltip (shared across this section's rows) and the
+        // text shown when hovering the month-total row.
+        this._tooltip = new Tooltip();
+        this._totalTooltip = '';
+        // Last successful fetch, cached so a rate/currency change can re-render
+        // earnings locally without hitting the API again (null = no data yet).
+        this._secondsByProject = null;
+        this._namesByProject = null;
     }
 
     destroy() {
@@ -52,6 +62,9 @@ export class Hubstaff {
         this._tokenCancellable?.cancel();
         this._tokenCancellable = null;
         this._tokenWaiters = [];
+        // The tooltip lives in Main.layoutManager.uiGroup, not under this.menu,
+        // so super.destroy() won't reap it — drop it here or it leaks.
+        this._tooltip.destroy();
     }
 
     buildMenu(menu) {
@@ -81,6 +94,11 @@ export class Hubstaff {
         });
         titleRow.add_child(this._totalLabel);
         this._box.add_child(titleRow);
+
+        // Hovering the title/total row reveals the estimated month earnings.
+        // Bound once here (the row is persistent); it reads the latest text
+        // from this._totalTooltip, set on each render.
+        this._tooltip.bind(titleRow, () => this._totalTooltip);
 
         this._rowsBox = new St.BoxLayout({
             vertical: true,
@@ -124,8 +142,7 @@ export class Hubstaff {
         const cancellable = this._cancellable;
 
         if (!this._currentRefreshToken()) {
-            this._separator.hide();
-            this._item.hide();
+            this._hideSection();
             return;
         }
 
@@ -356,7 +373,9 @@ export class Hubstaff {
     }
 
     // Walk organizations one at a time, accumulating project names and tracked
-    // seconds per project across all of them before rendering once.
+    // seconds per project across all of them before rendering once. Earnings are
+    // not summed here — they are derived from the seconds at render time so a
+    // rate/currency change can re-render without refetching.
     _processOrgs(token, userId, orgs, idx, from, to, secondsByProject, namesByProject, cancellable) {
         if (idx >= orgs.length) {
             this._updateDisplay(secondsByProject, namesByProject);
@@ -425,7 +444,22 @@ export class Hubstaff {
     }
 
     _updateDisplay(secondsByProject, namesByProject) {
+        // Cache the raw fetch so rerender() can recompute earnings after a
+        // rate/currency change without hitting the API again.
+        this._secondsByProject = secondsByProject;
+        this._namesByProject = namesByProject;
+
+        // A render replaces every row; hide any tooltip still pointing at one.
+        this._tooltip.hide();
         this._rowsBox.destroy_all_children();
+
+        // Earnings are derived here from the current rate so prefs changes take
+        // effect on the next render (see rerender()).
+        const rate = this._settings.get_double('hubstaff-hourly-rate');
+        const currency = this._settings.get_string('hubstaff-currency').trim();
+        const decimals = this._settings.get_int('hubstaff-currency-decimals');
+        const earningsFor = (seconds) =>
+            rate > 0 ? (seconds / 3600) * rate : 0;
 
         // Most-tracked project first; drop any zero-second entries.
         const entries = Object.entries(secondsByProject)
@@ -434,6 +468,13 @@ export class Hubstaff {
 
         const total = entries.reduce((sum, [, seconds]) => sum + seconds, 0);
         this._totalLabel.set_text(total > 0 ? this._formatSeconds(total) : '');
+
+        // Month earnings tooltip on the title row — only when there is something
+        // to show (rate > 0); an empty string disables the tooltip entirely.
+        const totalEarnings = earningsFor(total);
+        this._totalTooltip = totalEarnings > 0
+            ? `Earned this month: ${formatMoney(totalEarnings, currency, decimals)}`
+            : '';
 
         if (entries.length === 0) {
             this._rowsBox.add_child(new St.Label({
@@ -461,6 +502,13 @@ export class Hubstaff {
                 });
                 row.add_child(valueLabel);
 
+                // Per-project earnings tooltip (only when we have a rate).
+                const earned = earningsFor(seconds);
+                if (earned > 0) {
+                    const text = `Earned: ${formatMoney(earned, currency, decimals)}`;
+                    this._tooltip.bind(row, () => text);
+                }
+
                 this._rowsBox.add_child(row);
             }
         }
@@ -469,7 +517,39 @@ export class Hubstaff {
         this._item.show();
     }
 
+    // Re-render from the cached fetch (e.g. after a rate/currency change) so
+    // earnings update without another round-trip. No-op until the first fetch.
+    rerender() {
+        if (this._item && this._secondsByProject) {
+            this._updateDisplay(this._secondsByProject, this._namesByProject);
+        }
+    }
+
+    // Hide the section and drop the cached fetch, so a later rate/currency
+    // change (which calls rerender()) can't resurrect a section that should
+    // stay hidden because the user cleared the PAT. Also abort any in-flight
+    // token exchange: with no refresh token there is nothing to rotate, and
+    // letting the exchange finish would let its error path (_setMessage) re-show
+    // the very section the user just disabled. destroy() also cancels this, so
+    // its callback already bails cleanly on a cancelled _tokenCancellable.
+    _hideSection() {
+        this._secondsByProject = null;
+        this._namesByProject = null;
+        this._totalTooltip = '';
+        this._tooltip.hide();
+        this._tokenCancellable?.cancel();
+        this._separator.hide();
+        this._item.hide();
+    }
+
     _setMessage(text) {
+        this._tooltip.hide();
+        // The cached fetch is no longer what's on screen; drop it so a later
+        // rate change doesn't re-render stale data over this message.
+        this._secondsByProject = null;
+        this._namesByProject = null;
+        // No earnings to show in an error/token state — disable the tooltip.
+        this._totalTooltip = '';
         this._totalLabel.set_text('');
         this._rowsBox.destroy_all_children();
         this._rowsBox.add_child(new St.Label({

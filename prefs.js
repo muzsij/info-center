@@ -323,6 +323,75 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         // Rows currently shown in statusesGroup, so we can clear them on re-fetch.
         const statusRows = [];
 
+        const earningsGroup = new Adw.PreferencesGroup({
+            title: 'Earnings',
+            description: 'Show estimated earnings in a tooltip when you hover ' +
+                'over the monthly time',
+        });
+        page.add(earningsGroup);
+
+        const rateRow = new Adw.SpinRow({
+            title: 'Hourly Rate',
+            subtitle: 'Your pay rate, used to estimate earnings (set 0 to ' +
+                'disable the earnings tooltip)',
+            digits: 2,
+            adjustment: new Gtk.Adjustment({
+                lower: 0,
+                upper: 100000,
+                step_increment: 1,
+                page_increment: 10,
+                value: settings.get_double('redmine-hourly-rate'),
+            }),
+        });
+        settings.bind(
+            'redmine-hourly-rate',
+            rateRow,
+            'value',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        earningsGroup.add(rateRow);
+
+        const currencyRow = new Adw.EntryRow({
+            title: 'Currency',
+        });
+        currencyRow.set_text(settings.get_string('redmine-currency'));
+        currencyRow.connect('changed', () => {
+            settings.set_string('redmine-currency', currencyRow.get_text().trim());
+        });
+        earningsGroup.add(currencyRow);
+
+        const decimalsRow = new Adw.SpinRow({
+            title: 'Decimal Places',
+            subtitle: 'How many decimals to round earnings to. Negative rounds ' +
+                'to higher values (e.g. -2 rounds to the nearest 100)',
+            adjustment: new Gtk.Adjustment({
+                lower: -6,
+                upper: 6,
+                step_increment: 1,
+                page_increment: 1,
+                value: settings.get_int('redmine-currency-decimals'),
+            }),
+        });
+        settings.bind(
+            'redmine-currency-decimals',
+            decimalsRow,
+            'value',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        earningsGroup.add(decimalsRow);
+
+        const earningsHint = new Gtk.Label({
+            label: 'Earnings are estimated from your logged time × this hourly ' +
+                'rate and shown in a tooltip when you hover over the monthly ' +
+                'time. Currency is just a label (e.g. USD, EUR, $).',
+            xalign: 0,
+            wrap: true,
+            css_classes: ['dim-label', 'caption'],
+            margin_start: 12,
+            margin_top: 4,
+        });
+        earningsGroup.add(earningsHint);
+
         const fetchAll = () => {
             this._fetchProjects(settings, projectsGroup, projectRows, statusLabel, fetchButton);
             this._fetchStatuses(settings, statusesGroup, statusRows);
@@ -419,6 +488,75 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
             margin_top: 4,
         });
         connectionGroup.add(tokenHint);
+
+        const earningsGroup = new Adw.PreferencesGroup({
+            title: 'Earnings',
+            description: 'Show estimated earnings in a tooltip when you hover ' +
+                'over the tracked time',
+        });
+        page.add(earningsGroup);
+
+        const rateRow = new Adw.SpinRow({
+            title: 'Hourly Rate',
+            subtitle: 'Your pay rate, used to estimate earnings (set 0 to ' +
+                'disable the earnings tooltip)',
+            digits: 2,
+            adjustment: new Gtk.Adjustment({
+                lower: 0,
+                upper: 100000,
+                step_increment: 1,
+                page_increment: 10,
+                value: settings.get_double('hubstaff-hourly-rate'),
+            }),
+        });
+        settings.bind(
+            'hubstaff-hourly-rate',
+            rateRow,
+            'value',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        earningsGroup.add(rateRow);
+
+        const currencyRow = new Adw.EntryRow({
+            title: 'Currency',
+        });
+        currencyRow.set_text(settings.get_string('hubstaff-currency'));
+        currencyRow.connect('changed', () => {
+            settings.set_string('hubstaff-currency', currencyRow.get_text().trim());
+        });
+        earningsGroup.add(currencyRow);
+
+        const decimalsRow = new Adw.SpinRow({
+            title: 'Decimal Places',
+            subtitle: 'How many decimals to round earnings to. Negative rounds ' +
+                'to higher values (e.g. -2 rounds to the nearest 100)',
+            adjustment: new Gtk.Adjustment({
+                lower: -6,
+                upper: 6,
+                step_increment: 1,
+                page_increment: 1,
+                value: settings.get_int('hubstaff-currency-decimals'),
+            }),
+        });
+        settings.bind(
+            'hubstaff-currency-decimals',
+            decimalsRow,
+            'value',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        earningsGroup.add(decimalsRow);
+
+        const earningsHint = new Gtk.Label({
+            label: 'Earnings are estimated from your tracked time × this ' +
+                'hourly rate and shown in a tooltip when you hover over the ' +
+                'tracked time. Currency is just a label (e.g. USD, EUR, $).',
+            xalign: 0,
+            wrap: true,
+            css_classes: ['dim-label', 'caption'],
+            margin_start: 12,
+            margin_top: 4,
+        });
+        earningsGroup.add(earningsHint);
     }
 
     _fetchStatuses(settings, statusesGroup, statusRows) {

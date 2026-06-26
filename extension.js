@@ -84,6 +84,16 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 // access-token cache are written by us and are not watched here,
                 // so token rotation does not retrigger a refresh).
                 this._hubstaff.refresh();
+            } else if (key === 'hubstaff-hourly-rate' || key === 'hubstaff-currency' ||
+                       key === 'hubstaff-currency-decimals') {
+                // Earnings derive from the already-fetched tracked time, so just
+                // recompute and re-render locally — no need to hit the API again.
+                this._hubstaff.rerender();
+            } else if (key === 'redmine-hourly-rate' || key === 'redmine-currency' ||
+                       key === 'redmine-currency-decimals') {
+                // Same as Hubstaff: earnings derive from the already-fetched
+                // monthly time, so re-render locally instead of refetching.
+                this._redmine.rerender();
             } else if (key === 'display-mode') {
                 this._updateDisplayMode();
             } else if (key === 'show-icon') {

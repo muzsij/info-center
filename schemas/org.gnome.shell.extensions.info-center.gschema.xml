@@ -71,6 +71,21 @@
       <summary>Redmine status names</summary>
       <description>Map of Redmine issue status ID to display name, used to label statuses in the preferences.</description>
     </key>
+    <key name="redmine-hourly-rate" type="d">
+      <default>0.0</default>
+      <summary>Redmine hourly rate</summary>
+      <description>Hourly pay rate used to estimate earnings (logged time × rate), shown in a tooltip when hovering the monthly time. Set to 0 to disable the earnings tooltip.</description>
+    </key>
+    <key name="redmine-currency" type="s">
+      <default>''</default>
+      <summary>Redmine currency label</summary>
+      <description>Currency label appended to estimated earnings (e.g. USD, EUR, $).</description>
+    </key>
+    <key name="redmine-currency-decimals" type="i">
+      <default>2</default>
+      <summary>Redmine earnings decimal places</summary>
+      <description>Number of decimal places to round estimated earnings to. May be negative to round to higher place values (e.g. -2 rounds to the nearest 100).</description>
+    </key>
     <key name="redmine-tasks-all-projects" type="b">
       <default>false</default>
       <summary>Show tasks from all projects</summary>
@@ -100,6 +115,21 @@
       <default>0</default>
       <summary>Hubstaff access token expiry</summary>
       <description>Unix time (seconds) at which the cached Hubstaff access token expires.</description>
+    </key>
+    <key name="hubstaff-hourly-rate" type="d">
+      <default>0.0</default>
+      <summary>Hubstaff hourly rate</summary>
+      <description>Hourly pay rate used to estimate earnings (tracked time × rate), shown in a tooltip when hovering the tracked time. Set to 0 to disable the earnings tooltip.</description>
+    </key>
+    <key name="hubstaff-currency" type="s">
+      <default>''</default>
+      <summary>Hubstaff currency label</summary>
+      <description>Currency label appended to estimated earnings (e.g. USD, EUR, $).</description>
+    </key>
+    <key name="hubstaff-currency-decimals" type="i">
+      <default>2</default>
+      <summary>Hubstaff earnings decimal places</summary>
+      <description>Number of decimal places to round estimated earnings to. May be negative to round to higher place values (e.g. -2 rounds to the nearest 100).</description>
     </key>
   </schema>
 </schemalist>

@@ -6,6 +6,8 @@ import Soup from 'gi://Soup';
 
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
+import {Tooltip, formatMoney} from './tooltip.js';
+
 // Owns the Redmine menu sections: the "Today" / "Tomorrow" issue lists and the
 // per-project "this month" time totals. All sections are hidden until Redmine
 // is configured with a URL, API key, and (for monthly totals) at least one
@@ -16,6 +18,15 @@ export class Redmine {
         this._settings = settings;
         this._getSession = getSession;
         this._cancellable = null;
+        // Floating earnings tooltip (shared across the month-totals rows) and
+        // the text shown when hovering the month-total title row.
+        this._tooltip = new Tooltip();
+        this._totalTooltip = '';
+        // Last successful monthly-totals fetch, cached so a rate/currency change
+        // can re-render earnings locally without hitting the API again (null =
+        // no data yet).
+        this._hoursByProject = null;
+        this._namesByProject = null;
     }
 
     destroy() {
@@ -23,6 +34,9 @@ export class Redmine {
         // doesn't touch the menu widgets super.destroy() is about to dispose.
         this._cancellable?.cancel();
         this._cancellable = null;
+        // The tooltip lives in Main.layoutManager.uiGroup, not under this.menu,
+        // so super.destroy() won't reap it — drop it here or it leaks.
+        this._tooltip.destroy();
     }
 
     buildMenu(menu) {
@@ -58,6 +72,11 @@ export class Redmine {
         });
         titleRow.add_child(this._totalLabel);
         this._box.add_child(titleRow);
+
+        // Hovering the title/total row reveals the estimated month earnings.
+        // Bound once here (the row is persistent); it reads the latest text
+        // from this._totalTooltip, set on each render.
+        this._tooltip.bind(titleRow, () => this._totalTooltip);
 
         this._rowsBox = new St.BoxLayout({
             vertical: true,
@@ -133,8 +152,7 @@ export class Redmine {
         // Tasks can run with all-projects mode even without a selection; the
         // monthly totals always need at least one selected project.
         if (!baseUrl || !apiKey || (projectIds.length === 0 && !allProjectTasks)) {
-            this._separator.hide();
-            this._item.hide();
+            this._hideTotals();
             this._todaySection.separator.hide();
             this._todaySection.item.hide();
             this._tomorrowSection.separator.hide();
@@ -150,11 +168,22 @@ export class Redmine {
             const to = now.format('%Y-%m-%d');
             this._fetchTimeEntries(baseUrl, apiKey, from, to, 0, {}, {}, cancellable);
         } else {
-            this._separator.hide();
-            this._item.hide();
+            this._hideTotals();
         }
 
         this._fetchIssues(baseUrl, apiKey, 0, [], cancellable);
+    }
+
+    // Hide the monthly-totals section and drop its cached fetch + tooltip, so a
+    // later rate/currency change (which calls rerender()) can't resurrect a
+    // section that should stay hidden (e.g. no project selected).
+    _hideTotals() {
+        this._hoursByProject = null;
+        this._namesByProject = null;
+        this._totalTooltip = '';
+        this._tooltip.hide();
+        this._separator.hide();
+        this._item.hide();
     }
 
     _fetchIssues(baseUrl, apiKey, offset, issues, cancellable) {
@@ -375,14 +404,35 @@ export class Redmine {
     }
 
     _updateDisplay(hoursByProject, namesByProject = {}) {
+        // Cache the raw fetch so rerender() can recompute earnings after a
+        // rate/currency change without hitting the API again.
+        this._hoursByProject = hoursByProject;
+        this._namesByProject = namesByProject;
+
         const projectIds = this._settings.get_strv('redmine-projects');
         const storedNames = this._settings.get_value('redmine-project-names').deep_unpack();
 
+        // A render replaces every row; hide any tooltip still pointing at one.
+        this._tooltip.hide();
         this._rowsBox.destroy_all_children();
+
+        // Earnings are derived here from the current rate so prefs changes take
+        // effect on the next render (see rerender()).
+        const rate = this._settings.get_double('redmine-hourly-rate');
+        const currency = this._settings.get_string('redmine-currency').trim();
+        const decimals = this._settings.get_int('redmine-currency-decimals');
+        const earningsFor = (hours) => rate > 0 ? hours * rate : 0;
 
         const total = projectIds.reduce(
             (sum, id) => sum + (hoursByProject[id] ?? 0), 0);
         this._totalLabel.set_text(total > 0 ? this._formatHours(total) : '');
+
+        // Month earnings tooltip on the title row — only when there is something
+        // to show (rate > 0); an empty string disables the tooltip entirely.
+        const totalEarnings = earningsFor(total);
+        this._totalTooltip = totalEarnings > 0
+            ? `Earned this month: ${formatMoney(totalEarnings, currency, decimals)}`
+            : '';
 
         for (const id of projectIds) {
             const name = namesByProject[id] ?? storedNames[id] ?? `Project #${id}`;
@@ -405,6 +455,13 @@ export class Redmine {
             });
             row.add_child(valueLabel);
 
+            // Per-project earnings tooltip (only when we have a rate).
+            const earned = earningsFor(hours);
+            if (earned > 0) {
+                const text = `Earned: ${formatMoney(earned, currency, decimals)}`;
+                this._tooltip.bind(row, () => text);
+            }
+
             this._rowsBox.add_child(row);
         }
 
@@ -412,7 +469,22 @@ export class Redmine {
         this._item.show();
     }
 
+    // Re-render from the cached fetch (e.g. after a rate/currency change) so
+    // earnings update without another round-trip. No-op until the first fetch.
+    rerender() {
+        if (this._item && this._hoursByProject) {
+            this._updateDisplay(this._hoursByProject, this._namesByProject);
+        }
+    }
+
     _setMessage(text) {
+        this._tooltip.hide();
+        // The cached fetch is no longer what's on screen; drop it so a later
+        // rate change doesn't re-render stale data over this message.
+        this._hoursByProject = null;
+        this._namesByProject = null;
+        // No earnings to show in an error state — disable the tooltip.
+        this._totalTooltip = '';
         this._totalLabel.set_text('');
         this._rowsBox.destroy_all_children();
         this._rowsBox.add_child(new St.Label({
