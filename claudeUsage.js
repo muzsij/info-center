@@ -135,14 +135,20 @@ export class ClaudeUsage {
         fiveHourHeader.add_child(this._fiveHourPercent);
         fiveHourBox.add_child(fiveHourHeader);
 
-        const fiveHourProgressBg = new St.Widget({
+        this._fiveHourProgressBg = new St.Widget({
             style_class: 'info-center-progress-bg',
         });
         this._fiveHourProgressBar = new St.Widget({
             style_class: 'info-center-progress-bar usage-low',
         });
-        fiveHourProgressBg.add_child(this._fiveHourProgressBar);
-        fiveHourBox.add_child(fiveHourProgressBg);
+        this._fiveHourProgressBg.add_child(this._fiveHourProgressBar);
+        // The bg stretches to the menu width, so the fill width must track the
+        // bg's *actual* allocated width, not a hardcoded max — recompute it
+        // whenever the bg is (re)allocated (e.g. the first time the menu opens).
+        this._fiveHourProgressBg.connect('notify::width', () => {
+            this._applyBarWidth(this._fiveHourProgressBar, this._fiveHourProgressBg);
+        });
+        fiveHourBox.add_child(this._fiveHourProgressBg);
 
         this._fiveHourResetLabel = new St.Label({
             text: 'Resets: ...',
@@ -180,14 +186,17 @@ export class ClaudeUsage {
         sevenDayHeader.add_child(this._sevenDayPercent);
         sevenDayBox.add_child(sevenDayHeader);
 
-        const sevenDayProgressBg = new St.Widget({
+        this._sevenDayProgressBg = new St.Widget({
             style_class: 'info-center-progress-bg',
         });
         this._sevenDayProgressBar = new St.Widget({
             style_class: 'info-center-progress-bar usage-low',
         });
-        sevenDayProgressBg.add_child(this._sevenDayProgressBar);
-        sevenDayBox.add_child(sevenDayProgressBg);
+        this._sevenDayProgressBg.add_child(this._sevenDayProgressBar);
+        this._sevenDayProgressBg.connect('notify::width', () => {
+            this._applyBarWidth(this._sevenDayProgressBar, this._sevenDayProgressBg);
+        });
+        sevenDayBox.add_child(this._sevenDayProgressBg);
 
         this._sevenDayResetLabel = new St.Label({
             text: 'Resets: ...',
@@ -321,10 +330,10 @@ export class ClaudeUsage {
         this._updatePanelProgressBar(fiveHour);
 
         this._fiveHourPercent.set_text(`${fiveHour.toFixed(1)}%`);
-        this._updateProgressBar(this._fiveHourProgressBar, fiveHour);
+        this._updateProgressBar(this._fiveHourProgressBar, this._fiveHourProgressBg, fiveHour);
 
         this._sevenDayPercent.set_text(`${sevenDay.toFixed(1)}%`);
-        this._updateProgressBar(this._sevenDayProgressBar, sevenDay);
+        this._updateProgressBar(this._sevenDayProgressBar, this._sevenDayProgressBg, sevenDay);
 
         // Always rewrite the reset labels — otherwise a "Refreshing…" left by
         // _showRefreshing persists when a successful response omits resets_at.
@@ -351,10 +360,17 @@ export class ClaudeUsage {
         this._panelProgressBar.set_width(width);
     }
 
-    _updateProgressBar(progressBar, usage) {
-        const maxWidth = 200;
-        const width = Math.round((Math.min(100, Math.max(0, usage)) / 100) * maxWidth);
-        progressBar.set_width(width);
+    // Store the 0..1 fill fraction on the bar and size it against the bg's
+    // current allocated width. The width is reapplied from notify::width too,
+    // so it stays correct when the menu (and thus the bg) is resized.
+    _applyBarWidth(progressBar, bg) {
+        const fraction = progressBar._fillFraction ?? 0;
+        progressBar.set_width(Math.round(bg.get_width() * fraction));
+    }
+
+    _updateProgressBar(progressBar, bg, usage) {
+        progressBar._fillFraction = Math.min(100, Math.max(0, usage)) / 100;
+        this._applyBarWidth(progressBar, bg);
 
         progressBar.remove_style_class_name('usage-low');
         progressBar.remove_style_class_name('usage-medium');
