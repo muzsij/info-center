@@ -128,7 +128,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._updateIconVisibility();
         this._updateIconStyle();
 
-        this._settingsChangedId = this._settings.connect('changed', (settings, key) => {
+        this._settingsChangedId = this._settings.connect('changed', (_settings, key) => {
             if (key === 'refresh-interval') {
                 this._restartTimer('claude');
             } else if (key === 'zai-refresh-interval') {
@@ -354,7 +354,7 @@ export default class InfoCenterExtension extends Extension {
         this._settings = this.getSettings();
         this._placeIndicator();
 
-        this._placementChangedId = this._settings.connect('changed', (settings, key) => {
+        this._placementChangedId = this._settings.connect('changed', (_settings, key) => {
             // The compact-view toggles change the dropdown's section layout, which
             // is built once in each module's buildMenu — recreate the whole
             // indicator (like a placement change) so the menu is rebuilt fresh.

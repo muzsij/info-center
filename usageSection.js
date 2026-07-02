@@ -141,7 +141,17 @@ function buildCompactWindow(box, tag) {
 // the menu (and thus the bg) is resized.
 export function applyBarWidth(bar, bg) {
     const fraction = bar._fillFraction ?? 0;
-    bar.set_width(Math.round(bg.get_width() * fraction));
+    const full = bg.get_width();
+    let width = Math.round(full * fraction);
+    // A nonzero-but-tiny fill (e.g. 1%) rounds to a few pixels — narrower than
+    // the 8px bar height / 4px corner radius — so its rounded corners can't
+    // render and it shows as a sharp sliver poking out of the track's rounded
+    // left edge. Floor a visible fill at the bar height so it always draws as a
+    // clean rounded pill that sits inside the track.
+    if (fraction > 0) {
+        width = Math.max(width, 8);
+    }
+    bar.set_width(Math.min(width, full));
 }
 
 // Store the 0..1 fill fraction on the bar, size it, and swap the usage-* CSS
