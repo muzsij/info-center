@@ -31,10 +31,22 @@ export class ClaudeUsage {
         this._authRetries = 0;
         this._hasData = false;
         this._cancellable = null;
+        this._menu = null;
+        this._openStateId = 0;
+        this._reapplyId = 0;
     }
 
     destroy() {
         this._clearRetry();
+        if (this._reapplyId) {
+            GLib.source_remove(this._reapplyId);
+            this._reapplyId = 0;
+        }
+        if (this._menu && this._openStateId) {
+            this._menu.disconnect(this._openStateId);
+        }
+        this._openStateId = 0;
+        this._menu = null;
         // Cancel any in-flight credential read / usage fetch so its callback
         // doesn't fire set_text on widgets super.destroy() is about to dispose.
         this._cancellable?.cancel();
@@ -124,6 +136,20 @@ export class ClaudeUsage {
     }
 
     buildMenu(menu) {
+        this._menu = menu;
+        // Recompute both bar fills every time the menu opens. notify::width on
+        // the bg only fires when the allocated width *changes*, so it misses the
+        // common case where a background (menu-closed) refresh computed the fill
+        // against a not-yet-allocated bg (width 0) and a later open reuses the
+        // same allocation — which left a real percentage rendering as an empty
+        // bar. Deferred to idle so the just-opened menu has been allocated and
+        // bg.get_width() reflects the real width.
+        this._openStateId = menu.connect('open-state-changed', (_menu, open) => {
+            if (open) {
+                this._reapplyBars();
+            }
+        });
+
         const five = this._buildUsageSection(menu, 'Claude 5-Hour Usage');
         this._fiveHourPercent = five.percent;
         this._fiveHourProgressBar = five.bar;
@@ -338,6 +364,20 @@ export class ClaudeUsage {
         const maxWidth = 50;
         const width = Math.round((Math.min(100, Math.max(0, usage)) / 100) * maxWidth);
         this._panelProgressBar.set_width(width);
+    }
+
+    // Reapply both bar fills from their stored fractions once the menu has
+    // settled its layout. Self-guarding so repeated opens don't stack idles.
+    _reapplyBars() {
+        if (this._reapplyId) {
+            return;
+        }
+        this._reapplyId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._reapplyId = 0;
+            this._applyBarWidth(this._fiveHourProgressBar, this._fiveHourProgressBg);
+            this._applyBarWidth(this._sevenDayProgressBar, this._sevenDayProgressBg);
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     // Store the 0..1 fill fraction on the bar and size it against the bg's
