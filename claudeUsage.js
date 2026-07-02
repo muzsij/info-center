@@ -164,6 +164,7 @@ export class ClaudeUsage {
 
         const bg = new St.Widget({
             style_class: 'info-center-progress-bg',
+            x_expand: true,
         });
         const bar = new St.Widget({
             style_class: 'info-center-progress-bar usage-low',
