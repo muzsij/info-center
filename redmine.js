@@ -2,6 +2,7 @@ import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
+import Pango from 'gi://Pango';
 import Soup from 'gi://Soup';
 
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
@@ -300,16 +301,29 @@ export class Redmine {
             for (const issue of issues) {
                 const label = new St.Label({
                     text: issue.subject ?? `#${issue.id}`,
-                    style_class: 'info-center-reset-label',
+                    style_class: 'info-center-issue-label',
                     y_align: Clutter.ActorAlign.CENTER,
+                    // Fill the row width so wrapping happens at the (capped)
+                    // menu width instead of the label taking its natural
+                    // single-line width and being clipped on the right.
+                    x_expand: true,
+                    x_align: Clutter.ActorAlign.FILL,
                 });
+                // Wrap long subjects onto multiple lines instead of letting
+                // the label grow and push the whole menu wider. This only takes
+                // effect because the label fills the row and the section's
+                // max-width caps how wide that row can get.
+                label.clutter_text.line_wrap = true;
+                label.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
+                label.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
 
                 // Clickable only when we know where to point the browser.
                 if (baseUrl) {
                     const button = new St.Button({
                         child: label,
                         style_class: 'info-center-issue-button',
-                        x_align: Clutter.ActorAlign.START,
+                        x_expand: true,
+                        x_align: Clutter.ActorAlign.FILL,
                         can_focus: true,
                     });
                     button.connect('clicked', () => {

@@ -34,6 +34,10 @@
     padding: 2px 0;
     spacing: 3px;
     min-width: 320px;
+    /* Cap the section width (matching min-width, so the menu keeps its original
+       size) so long issue subjects wrap at this boundary — their labels
+       x_expand to fill it — instead of growing the whole menu wider. */
+    max-width: 320px;
 }
 
 /* Tighter separators between sections */
@@ -55,8 +59,18 @@
 }
 
 .info-center-issue-button {
-    padding: 2px 4px;
+    /* No horizontal padding so the subject text lines up with the section
+       title and the other (unpadded) rows. (A negative margin here underflows
+       the wrapping label's width negotiation and breaks the menu's allocation.) */
+    padding: 2px 0;
     border-radius: 4px;
+}
+
+/* Same look as .info-center-reset-label; the label fills the row (x_expand in
+   JS) and the section's max-width is what bounds the wrap width. */
+.info-center-issue-label {
+    font-size: 11px;
+    color: #a0a0a0;
 }
 
 .info-center-issue-button:hover,
