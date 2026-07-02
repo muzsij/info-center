@@ -66,13 +66,21 @@ export class ClaudeUsage {
         );
     }
 
-    // Set the panel label and both dropdown percent labels in one go. Used for
-    // the various "no data" states so they stay consistent in one place.
+    // Hard "no data" state: set the panel label and both dropdown percent
+    // labels, and clear the bars and reset labels too — whatever was on screen
+    // is no longer valid, and a stale bar fill contradicting the error text
+    // would be misleading.
     _setMessage(label, fiveHour, sevenDay) {
+        this._hasData = false;
         this._label.remove_style_class_name('info-center-refreshing');
         this._label.set_text(label);
         this._fiveHourPercent.set_text(fiveHour);
         this._sevenDayPercent.set_text(sevenDay);
+        this._fiveHourResetLabel.set_text('—');
+        this._sevenDayResetLabel.set_text('—');
+        this._updatePanelProgressBar(0);
+        this._updateProgressBar(this._fiveHourProgressBar, this._fiveHourProgressBg, 0);
+        this._updateProgressBar(this._sevenDayProgressBar, this._sevenDayProgressBg, 0);
     }
 
     // Soft state for a stale/refreshing token: keep the last good percentages
@@ -116,100 +124,71 @@ export class ClaudeUsage {
     }
 
     buildMenu(menu) {
-        const fiveHourBox = new St.BoxLayout({
+        const five = this._buildUsageSection(menu, 'Claude 5-Hour Usage');
+        this._fiveHourPercent = five.percent;
+        this._fiveHourProgressBar = five.bar;
+        this._fiveHourProgressBg = five.bg;
+        this._fiveHourResetLabel = five.resetLabel;
+
+        const separator = new PopupMenu.PopupSeparatorMenuItem();
+        separator.add_style_class_name('info-center-separator');
+        menu.addMenuItem(separator);
+
+        const seven = this._buildUsageSection(menu, 'Claude 7-Day Usage');
+        this._sevenDayPercent = seven.percent;
+        this._sevenDayProgressBar = seven.bar;
+        this._sevenDayProgressBg = seven.bg;
+        this._sevenDayResetLabel = seven.resetLabel;
+    }
+
+    // One usage section: title + right-aligned percent, a progress bar, and a
+    // reset-time label. The 5-hour and 7-day sections are identical in shape.
+    _buildUsageSection(menu, title) {
+        const box = new St.BoxLayout({
             style_class: 'info-center-usage-section',
             vertical: true,
         });
-        const fiveHourHeader = new St.BoxLayout({ vertical: false });
-        const fiveHourLabel = new St.Label({
-            text: 'Claude 5-Hour Usage',
+        const header = new St.BoxLayout({ vertical: false });
+        header.add_child(new St.Label({
+            text: title,
             style_class: 'info-center-section-title',
-        });
-        fiveHourHeader.add_child(fiveHourLabel);
-        this._fiveHourPercent = new St.Label({
+        }));
+        const percent = new St.Label({
             text: '...',
             style_class: 'info-center-percent-label',
             x_expand: true,
             x_align: Clutter.ActorAlign.END,
         });
-        fiveHourHeader.add_child(this._fiveHourPercent);
-        fiveHourBox.add_child(fiveHourHeader);
+        header.add_child(percent);
+        box.add_child(header);
 
-        this._fiveHourProgressBg = new St.Widget({
+        const bg = new St.Widget({
             style_class: 'info-center-progress-bg',
         });
-        this._fiveHourProgressBar = new St.Widget({
+        const bar = new St.Widget({
             style_class: 'info-center-progress-bar usage-low',
         });
-        this._fiveHourProgressBg.add_child(this._fiveHourProgressBar);
+        bg.add_child(bar);
         // The bg stretches to the menu width, so the fill width must track the
         // bg's *actual* allocated width, not a hardcoded max — recompute it
         // whenever the bg is (re)allocated (e.g. the first time the menu opens).
-        this._fiveHourProgressBg.connect('notify::width', () => {
-            this._applyBarWidth(this._fiveHourProgressBar, this._fiveHourProgressBg);
-        });
-        fiveHourBox.add_child(this._fiveHourProgressBg);
+        bg.connect('notify::width', () => this._applyBarWidth(bar, bg));
+        box.add_child(bg);
 
-        this._fiveHourResetLabel = new St.Label({
+        const resetLabel = new St.Label({
             text: 'Resets: ...',
             style_class: 'info-center-reset-label',
         });
-        fiveHourBox.add_child(this._fiveHourResetLabel);
+        box.add_child(resetLabel);
 
-        const fiveHourItem = new PopupMenu.PopupBaseMenuItem({
+        const item = new PopupMenu.PopupBaseMenuItem({
             reactive: false,
             can_focus: false,
         });
-        fiveHourItem.add_child(fiveHourBox);
-        menu.addMenuItem(fiveHourItem);
+        item.add_child(box);
+        menu.addMenuItem(item);
 
-        const topSeparator = new PopupMenu.PopupSeparatorMenuItem();
-        topSeparator.add_style_class_name('info-center-separator');
-        menu.addMenuItem(topSeparator);
-
-        const sevenDayBox = new St.BoxLayout({
-            style_class: 'info-center-usage-section',
-            vertical: true,
-        });
-        const sevenDayHeader = new St.BoxLayout({ vertical: false });
-        const sevenDayLabel = new St.Label({
-            text: 'Claude 7-Day Usage',
-            style_class: 'info-center-section-title',
-        });
-        sevenDayHeader.add_child(sevenDayLabel);
-        this._sevenDayPercent = new St.Label({
-            text: '...',
-            style_class: 'info-center-percent-label',
-            x_expand: true,
-            x_align: Clutter.ActorAlign.END,
-        });
-        sevenDayHeader.add_child(this._sevenDayPercent);
-        sevenDayBox.add_child(sevenDayHeader);
-
-        this._sevenDayProgressBg = new St.Widget({
-            style_class: 'info-center-progress-bg',
-        });
-        this._sevenDayProgressBar = new St.Widget({
-            style_class: 'info-center-progress-bar usage-low',
-        });
-        this._sevenDayProgressBg.add_child(this._sevenDayProgressBar);
-        this._sevenDayProgressBg.connect('notify::width', () => {
-            this._applyBarWidth(this._sevenDayProgressBar, this._sevenDayProgressBg);
-        });
-        sevenDayBox.add_child(this._sevenDayProgressBg);
-
-        this._sevenDayResetLabel = new St.Label({
-            text: 'Resets: ...',
-            style_class: 'info-center-reset-label',
-        });
-        sevenDayBox.add_child(this._sevenDayResetLabel);
-
-        const sevenDayItem = new PopupMenu.PopupBaseMenuItem({
-            reactive: false,
-            can_focus: false,
-        });
-        sevenDayItem.add_child(sevenDayBox);
-        menu.addMenuItem(sevenDayItem);
+        return { percent, bar, bg, resetLabel };
     }
 
     refresh() {
@@ -372,19 +351,16 @@ export class ClaudeUsage {
         progressBar._fillFraction = Math.min(100, Math.max(0, usage)) / 100;
         this._applyBarWidth(progressBar, bg);
 
-        progressBar.remove_style_class_name('usage-low');
-        progressBar.remove_style_class_name('usage-medium');
-        progressBar.remove_style_class_name('usage-high');
-        progressBar.remove_style_class_name('usage-critical');
-
-        if (usage >= 90) {
-            progressBar.add_style_class_name('usage-critical');
-        } else if (usage >= 70) {
-            progressBar.add_style_class_name('usage-high');
-        } else if (usage >= 40) {
-            progressBar.add_style_class_name('usage-medium');
-        } else {
-            progressBar.add_style_class_name('usage-low');
+        const level = usage >= 90 ? 'usage-critical'
+            : usage >= 70 ? 'usage-high'
+            : usage >= 40 ? 'usage-medium'
+            : 'usage-low';
+        for (const cls of ['usage-low', 'usage-medium', 'usage-high', 'usage-critical']) {
+            if (cls === level) {
+                progressBar.add_style_class_name(cls);
+            } else {
+                progressBar.remove_style_class_name(cls);
+            }
         }
     }
 
@@ -393,6 +369,12 @@ export class ClaudeUsage {
             const resetDate = new Date(isoString);
             const now = new Date();
             const diffMs = resetDate - now;
+
+            // An unparsable date yields NaN (new Date() doesn't throw, so the
+            // catch below never sees it) — without this it renders as "NaNm".
+            if (Number.isNaN(diffMs)) {
+                return '—';
+            }
 
             if (diffMs < 0) {
                 return 'now';

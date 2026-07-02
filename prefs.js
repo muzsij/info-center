@@ -25,6 +25,103 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         this._buildHubstaffPage(window, settings);
     }
 
+    // Every feature page starts with the same General group holding a
+    // refresh-interval spin row; only the key and wording differ.
+    _buildGeneralGroup(page, settings, intervalKey, description, subtitle) {
+        const group = new Adw.PreferencesGroup({
+            title: 'General',
+            description,
+        });
+        page.add(group);
+
+        const refreshRow = new Adw.SpinRow({
+            title: 'Refresh Interval',
+            subtitle,
+            adjustment: new Gtk.Adjustment({
+                lower: 10,
+                upper: 600,
+                step_increment: 10,
+                page_increment: 60,
+                value: settings.get_int(intervalKey),
+            }),
+        });
+        settings.bind(intervalKey, refreshRow, 'value', Gio.SettingsBindFlags.DEFAULT);
+        group.add(refreshRow);
+    }
+
+    // The Redmine and Hubstaff pages have identical Earnings groups, differing
+    // only in the settings-key prefix and how the tracked time is referred to.
+    _buildEarningsGroup(page, settings, keyPrefix, sourceNoun, hoverNoun) {
+        const earningsGroup = new Adw.PreferencesGroup({
+            title: 'Earnings',
+            description: 'Show estimated earnings in a tooltip when you hover ' +
+                `over the ${hoverNoun}`,
+        });
+        page.add(earningsGroup);
+
+        const rateRow = new Adw.SpinRow({
+            title: 'Hourly Rate',
+            subtitle: 'Your pay rate, used to estimate earnings (set 0 to ' +
+                'disable the earnings tooltip)',
+            digits: 2,
+            adjustment: new Gtk.Adjustment({
+                lower: 0,
+                upper: 100000,
+                step_increment: 1,
+                page_increment: 10,
+                value: settings.get_double(`${keyPrefix}-hourly-rate`),
+            }),
+        });
+        settings.bind(
+            `${keyPrefix}-hourly-rate`,
+            rateRow,
+            'value',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        earningsGroup.add(rateRow);
+
+        const currencyRow = new Adw.EntryRow({
+            title: 'Currency',
+        });
+        currencyRow.set_text(settings.get_string(`${keyPrefix}-currency`));
+        currencyRow.connect('changed', () => {
+            settings.set_string(`${keyPrefix}-currency`, currencyRow.get_text().trim());
+        });
+        earningsGroup.add(currencyRow);
+
+        const decimalsRow = new Adw.SpinRow({
+            title: 'Decimal Places',
+            subtitle: 'How many decimals to round earnings to. Negative rounds ' +
+                'to higher values (e.g. -2 rounds to the nearest 100)',
+            adjustment: new Gtk.Adjustment({
+                lower: -6,
+                upper: 6,
+                step_increment: 1,
+                page_increment: 1,
+                value: settings.get_int(`${keyPrefix}-currency-decimals`),
+            }),
+        });
+        settings.bind(
+            `${keyPrefix}-currency-decimals`,
+            decimalsRow,
+            'value',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        earningsGroup.add(decimalsRow);
+
+        const earningsHint = new Gtk.Label({
+            label: `Earnings are estimated from your ${sourceNoun} × this ` +
+                'hourly rate and shown in a tooltip when you hover over the ' +
+                `${hoverNoun}. Currency is just a label (e.g. USD, EUR, $).`,
+            xalign: 0,
+            wrap: true,
+            css_classes: ['dim-label', 'caption'],
+            margin_start: 12,
+            margin_top: 4,
+        });
+        earningsGroup.add(earningsHint);
+    }
+
     _buildSettingsPage(window, settings) {
         const page = new Adw.PreferencesPage({
             title: 'Settings',
@@ -108,30 +205,9 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         });
         window.add(page);
 
-        const generalGroup = new Adw.PreferencesGroup({
-            title: 'General',
-            description: 'Configure the Info Center extension',
-        });
-        page.add(generalGroup);
-
-        const refreshRow = new Adw.SpinRow({
-            title: 'Refresh Interval',
-            subtitle: 'How often to refresh usage data (in seconds)',
-            adjustment: new Gtk.Adjustment({
-                lower: 10,
-                upper: 600,
-                step_increment: 10,
-                page_increment: 60,
-                value: settings.get_int('refresh-interval'),
-            }),
-        });
-        settings.bind(
-            'refresh-interval',
-            refreshRow,
-            'value',
-            Gio.SettingsBindFlags.DEFAULT
-        );
-        generalGroup.add(refreshRow);
+        this._buildGeneralGroup(page, settings, 'refresh-interval',
+            'Configure the Info Center extension',
+            'How often to refresh usage data (in seconds)');
 
         const displayGroup = new Adw.PreferencesGroup({
             title: 'Panel Display',
@@ -202,30 +278,9 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         });
         window.add(page);
 
-        const generalGroup = new Adw.PreferencesGroup({
-            title: 'General',
-            description: 'Configure how Redmine data is refreshed',
-        });
-        page.add(generalGroup);
-
-        const refreshRow = new Adw.SpinRow({
-            title: 'Refresh Interval',
-            subtitle: 'How often to refresh Redmine data (in seconds)',
-            adjustment: new Gtk.Adjustment({
-                lower: 10,
-                upper: 600,
-                step_increment: 10,
-                page_increment: 60,
-                value: settings.get_int('redmine-refresh-interval'),
-            }),
-        });
-        settings.bind(
-            'redmine-refresh-interval',
-            refreshRow,
-            'value',
-            Gio.SettingsBindFlags.DEFAULT
-        );
-        generalGroup.add(refreshRow);
+        this._buildGeneralGroup(page, settings, 'redmine-refresh-interval',
+            'Configure how Redmine data is refreshed',
+            'How often to refresh Redmine data (in seconds)');
 
         const connectionGroup = new Adw.PreferencesGroup({
             title: 'Connection',
@@ -323,74 +378,8 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         // Rows currently shown in statusesGroup, so we can clear them on re-fetch.
         const statusRows = [];
 
-        const earningsGroup = new Adw.PreferencesGroup({
-            title: 'Earnings',
-            description: 'Show estimated earnings in a tooltip when you hover ' +
-                'over the monthly time',
-        });
-        page.add(earningsGroup);
-
-        const rateRow = new Adw.SpinRow({
-            title: 'Hourly Rate',
-            subtitle: 'Your pay rate, used to estimate earnings (set 0 to ' +
-                'disable the earnings tooltip)',
-            digits: 2,
-            adjustment: new Gtk.Adjustment({
-                lower: 0,
-                upper: 100000,
-                step_increment: 1,
-                page_increment: 10,
-                value: settings.get_double('redmine-hourly-rate'),
-            }),
-        });
-        settings.bind(
-            'redmine-hourly-rate',
-            rateRow,
-            'value',
-            Gio.SettingsBindFlags.DEFAULT
-        );
-        earningsGroup.add(rateRow);
-
-        const currencyRow = new Adw.EntryRow({
-            title: 'Currency',
-        });
-        currencyRow.set_text(settings.get_string('redmine-currency'));
-        currencyRow.connect('changed', () => {
-            settings.set_string('redmine-currency', currencyRow.get_text().trim());
-        });
-        earningsGroup.add(currencyRow);
-
-        const decimalsRow = new Adw.SpinRow({
-            title: 'Decimal Places',
-            subtitle: 'How many decimals to round earnings to. Negative rounds ' +
-                'to higher values (e.g. -2 rounds to the nearest 100)',
-            adjustment: new Gtk.Adjustment({
-                lower: -6,
-                upper: 6,
-                step_increment: 1,
-                page_increment: 1,
-                value: settings.get_int('redmine-currency-decimals'),
-            }),
-        });
-        settings.bind(
-            'redmine-currency-decimals',
-            decimalsRow,
-            'value',
-            Gio.SettingsBindFlags.DEFAULT
-        );
-        earningsGroup.add(decimalsRow);
-
-        const earningsHint = new Gtk.Label({
-            label: 'Earnings are estimated from your logged time × this hourly ' +
-                'rate and shown in a tooltip when you hover over the monthly ' +
-                'time. Currency is just a label (e.g. USD, EUR, $).',
-            xalign: 0,
-            wrap: true,
-            css_classes: ['dim-label', 'caption'],
-            margin_start: 12,
-            margin_top: 4,
-        });
-        earningsGroup.add(earningsHint);
+        this._buildEarningsGroup(page, settings, 'redmine',
+            'logged time', 'monthly time');
 
         const fetchAll = () => {
             this._fetchProjects(settings, projectsGroup, projectRows, statusLabel, fetchButton);
@@ -416,30 +405,9 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         });
         window.add(page);
 
-        const generalGroup = new Adw.PreferencesGroup({
-            title: 'General',
-            description: 'Configure how Hubstaff data is refreshed',
-        });
-        page.add(generalGroup);
-
-        const refreshRow = new Adw.SpinRow({
-            title: 'Refresh Interval',
-            subtitle: 'How often to refresh Hubstaff data (in seconds)',
-            adjustment: new Gtk.Adjustment({
-                lower: 10,
-                upper: 600,
-                step_increment: 10,
-                page_increment: 60,
-                value: settings.get_int('hubstaff-refresh-interval'),
-            }),
-        });
-        settings.bind(
-            'hubstaff-refresh-interval',
-            refreshRow,
-            'value',
-            Gio.SettingsBindFlags.DEFAULT
-        );
-        generalGroup.add(refreshRow);
+        this._buildGeneralGroup(page, settings, 'hubstaff-refresh-interval',
+            'Configure how Hubstaff data is refreshed',
+            'How often to refresh Hubstaff data (in seconds)');
 
         const connectionGroup = new Adw.PreferencesGroup({
             title: 'Connection',
@@ -489,74 +457,74 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         });
         connectionGroup.add(tokenHint);
 
-        const earningsGroup = new Adw.PreferencesGroup({
-            title: 'Earnings',
-            description: 'Show estimated earnings in a tooltip when you hover ' +
-                'over the tracked time',
-        });
-        page.add(earningsGroup);
+        this._buildEarningsGroup(page, settings, 'hubstaff',
+            'tracked time', 'tracked time');
+    }
 
-        const rateRow = new Adw.SpinRow({
-            title: 'Hourly Rate',
-            subtitle: 'Your pay rate, used to estimate earnings (set 0 to ' +
-                'disable the earnings tooltip)',
-            digits: 2,
-            adjustment: new Gtk.Adjustment({
-                lower: 0,
-                upper: 100000,
-                step_increment: 1,
-                page_increment: 10,
-                value: settings.get_double('hubstaff-hourly-rate'),
-            }),
-        });
-        settings.bind(
-            'hubstaff-hourly-rate',
-            rateRow,
-            'value',
-            Gio.SettingsBindFlags.DEFAULT
+    // GET a Redmine JSON endpoint; calls onResult(error, data) exactly once.
+    // Soup.Message.new returns null for an unparseable URL (e.g. one entered
+    // without a scheme) — surfaced as an error instead of the null deref
+    // throwing out of the caller mid-way.
+    _redmineGet(url, apiKey, onResult) {
+        const message = Soup.Message.new('GET', url);
+        if (!message) {
+            onResult(new Error('invalid server URL'), null);
+            return;
+        }
+        message.request_headers.append('X-Redmine-API-Key', apiKey);
+
+        this._prefsSession().send_and_read_async(
+            message,
+            GLib.PRIORITY_DEFAULT,
+            null,
+            (sess, result) => {
+                try {
+                    const bytes = sess.send_and_read_finish(result);
+
+                    if (message.status_code !== 200) {
+                        onResult(new Error(`HTTP ${message.status_code}`), null);
+                        return;
+                    }
+
+                    const decoder = new TextDecoder('utf-8');
+                    onResult(null, JSON.parse(decoder.decode(bytes.get_data())));
+                } catch (e) {
+                    onResult(e, null);
+                }
+            }
         );
-        earningsGroup.add(rateRow);
+    }
 
-        const currencyRow = new Adw.EntryRow({
-            title: 'Currency',
-        });
-        currencyRow.set_text(settings.get_string('hubstaff-currency'));
-        currencyRow.connect('changed', () => {
-            settings.set_string('hubstaff-currency', currencyRow.get_text().trim());
-        });
-        earningsGroup.add(currencyRow);
+    // Replace `rows` in `group` with one checkbox row per {id, name} item,
+    // each toggling its id in the string-array key `settingsKey`.
+    _populateCheckRows(settings, group, rows, items, settingsKey) {
+        for (const row of rows) {
+            group.remove(row);
+        }
+        rows.length = 0;
 
-        const decimalsRow = new Adw.SpinRow({
-            title: 'Decimal Places',
-            subtitle: 'How many decimals to round earnings to. Negative rounds ' +
-                'to higher values (e.g. -2 rounds to the nearest 100)',
-            adjustment: new Gtk.Adjustment({
-                lower: -6,
-                upper: 6,
-                step_increment: 1,
-                page_increment: 1,
-                value: settings.get_int('hubstaff-currency-decimals'),
-            }),
-        });
-        settings.bind(
-            'hubstaff-currency-decimals',
-            decimalsRow,
-            'value',
-            Gio.SettingsBindFlags.DEFAULT
-        );
-        earningsGroup.add(decimalsRow);
+        const selected = new Set(settings.get_strv(settingsKey));
+        for (const {id, name} of items) {
+            const row = new Adw.ActionRow({ title: name });
+            const check = new Gtk.CheckButton({
+                active: selected.has(id),
+                valign: Gtk.Align.CENTER,
+            });
+            check.connect('toggled', () => {
+                const current = new Set(settings.get_strv(settingsKey));
+                if (check.get_active()) {
+                    current.add(id);
+                } else {
+                    current.delete(id);
+                }
+                settings.set_strv(settingsKey, [...current]);
+            });
+            row.add_prefix(check);
+            row.set_activatable_widget(check);
 
-        const earningsHint = new Gtk.Label({
-            label: 'Earnings are estimated from your tracked time × this ' +
-                'hourly rate and shown in a tooltip when you hover over the ' +
-                'tracked time. Currency is just a label (e.g. USD, EUR, $).',
-            xalign: 0,
-            wrap: true,
-            css_classes: ['dim-label', 'caption'],
-            margin_start: 12,
-            margin_top: 4,
-        });
-        earningsGroup.add(earningsHint);
+            group.add(row);
+            rows.push(row);
+        }
     }
 
     _fetchStatuses(settings, statusesGroup, statusRows) {
@@ -567,75 +535,23 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
             return;
         }
 
-        for (const row of statusRows) {
-            statusesGroup.remove(row);
-        }
-        statusRows.length = 0;
-
-        const url = `${baseUrl}/issue_statuses.json`;
-        const session = this._prefsSession();
-        const message = Soup.Message.new('GET', url);
-        message.request_headers.append('X-Redmine-API-Key', apiKey);
-
-        session.send_and_read_async(
-            message,
-            GLib.PRIORITY_DEFAULT,
-            null,
-            (sess, result) => {
-                try {
-                    const bytes = sess.send_and_read_finish(result);
-
-                    if (message.status_code !== 200) {
-                        return;
-                    }
-
-                    const decoder = new TextDecoder('utf-8');
-                    const data = JSON.parse(decoder.decode(bytes.get_data()));
-                    const statuses = data.issue_statuses ?? [];
-
-                    if (statuses.length === 0) {
-                        return;
-                    }
-
-                    const selected = new Set(settings.get_strv('redmine-statuses'));
-
-                    const nameMap = {};
-                    for (const status of statuses) {
-                        nameMap[String(status.id)] = status.name;
-                    }
-                    settings.set_value(
-                        'redmine-status-names',
-                        new GLib.Variant('a{ss}', nameMap)
-                    );
-
-                    for (const status of statuses) {
-                        const id = String(status.id);
-
-                        const row = new Adw.ActionRow({ title: status.name });
-                        const check = new Gtk.CheckButton({
-                            active: selected.has(id),
-                            valign: Gtk.Align.CENTER,
-                        });
-                        check.connect('toggled', () => {
-                            const current = new Set(settings.get_strv('redmine-statuses'));
-                            if (check.get_active()) {
-                                current.add(id);
-                            } else {
-                                current.delete(id);
-                            }
-                            settings.set_strv('redmine-statuses', [...current]);
-                        });
-                        row.add_prefix(check);
-                        row.set_activatable_widget(check);
-
-                        statusesGroup.add(row);
-                        statusRows.push(row);
-                    }
-                } catch (e) {
-                    // Statuses are optional; surface nothing on failure.
-                }
+        this._redmineGet(`${baseUrl}/issue_statuses.json`, apiKey, (error, data) => {
+            // Statuses are optional; surface nothing on failure.
+            if (error) {
+                return;
             }
-        );
+
+            const statuses = data.issue_statuses ?? [];
+            if (statuses.length === 0) {
+                return;
+            }
+
+            this._populateCheckRows(
+                settings, statusesGroup, statusRows,
+                statuses.map(s => ({id: String(s.id), name: s.name})),
+                'redmine-statuses'
+            );
+        });
     }
 
     _fetchProjects(settings, projectsGroup, projectRows, statusLabel, fetchButton) {
@@ -652,82 +568,41 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
             return;
         }
 
-        for (const row of projectRows) {
-            projectsGroup.remove(row);
-        }
-        projectRows.length = 0;
-
         fetchButton.set_sensitive(false);
         setStatus('Fetching projects…');
 
-        const url = `${baseUrl}/projects.json?limit=100`;
-        const session = this._prefsSession();
-        const message = Soup.Message.new('GET', url);
-        message.request_headers.append('X-Redmine-API-Key', apiKey);
+        this._redmineGet(`${baseUrl}/projects.json?limit=100`, apiKey, (error, data) => {
+            fetchButton.set_sensitive(true);
 
-        session.send_and_read_async(
-            message,
-            GLib.PRIORITY_DEFAULT,
-            null,
-            (sess, result) => {
-                fetchButton.set_sensitive(true);
-                try {
-                    const bytes = sess.send_and_read_finish(result);
-
-                    if (message.status_code !== 200) {
-                        setStatus(`Error: HTTP ${message.status_code}`);
-                        return;
-                    }
-
-                    const decoder = new TextDecoder('utf-8');
-                    const data = JSON.parse(decoder.decode(bytes.get_data()));
-                    const projects = data.projects ?? [];
-
-                    if (projects.length === 0) {
-                        setStatus('No projects found.');
-                        return;
-                    }
-
-                    const selected = new Set(settings.get_strv('redmine-projects'));
-
-                    const nameMap = {};
-                    for (const project of projects) {
-                        nameMap[String(project.id)] = project.name;
-                    }
-                    settings.set_value(
-                        'redmine-project-names',
-                        new GLib.Variant('a{ss}', nameMap)
-                    );
-
-                    for (const project of projects) {
-                        const id = String(project.id);
-
-                        const row = new Adw.ActionRow({ title: project.name });
-                        const check = new Gtk.CheckButton({
-                            active: selected.has(id),
-                            valign: Gtk.Align.CENTER,
-                        });
-                        check.connect('toggled', () => {
-                            const current = new Set(settings.get_strv('redmine-projects'));
-                            if (check.get_active()) {
-                                current.add(id);
-                            } else {
-                                current.delete(id);
-                            }
-                            settings.set_strv('redmine-projects', [...current]);
-                        });
-                        row.add_prefix(check);
-                        row.set_activatable_widget(check);
-
-                        projectsGroup.add(row);
-                        projectRows.push(row);
-                    }
-
-                    setStatus(`Loaded ${projects.length} project(s).`);
-                } catch (e) {
-                    setStatus(`Error: ${e.message}`);
-                }
+            if (error) {
+                setStatus(`Error: ${error.message}`);
+                return;
             }
-        );
+
+            const projects = data.projects ?? [];
+            if (projects.length === 0) {
+                setStatus('No projects found.');
+                return;
+            }
+
+            // Cache id→name so the panel can label projects before its own
+            // fetch returns.
+            const nameMap = {};
+            for (const project of projects) {
+                nameMap[String(project.id)] = project.name;
+            }
+            settings.set_value(
+                'redmine-project-names',
+                new GLib.Variant('a{ss}', nameMap)
+            );
+
+            this._populateCheckRows(
+                settings, projectsGroup, projectRows,
+                projects.map(p => ({id: String(p.id), name: p.name})),
+                'redmine-projects'
+            );
+
+            setStatus(`Loaded ${projects.length} project(s).`);
+        });
     }
 }

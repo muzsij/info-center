@@ -1,12 +1,9 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
-import St from 'gi://St';
-import Clutter from 'gi://Clutter';
 import Soup from 'gi://Soup';
 
-import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
-
 import {Tooltip, formatMoney} from './tooltip.js';
+import {buildTotalsSection, addTotalsRow, messageLabel, formatHM} from './sections.js';
 
 const TOKEN_URL = 'https://account.hubstaff.com/access_tokens';
 const API_BASE = 'https://api.hubstaff.com/v2';
@@ -68,54 +65,16 @@ export class Hubstaff {
     }
 
     buildMenu(menu) {
-        this._separator = new PopupMenu.PopupSeparatorMenuItem();
-        this._separator.add_style_class_name('info-center-separator');
-        menu.addMenuItem(this._separator);
-
-        this._box = new St.BoxLayout({
-            style_class: 'info-center-usage-section',
-            vertical: true,
-        });
-        // Title row: heading on the left, the running month total on the right.
-        const titleRow = new St.BoxLayout({ vertical: false });
-        const title = new St.Label({
-            text: 'Hubstaff time — this month',
-            style_class: 'info-center-section-title',
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        titleRow.add_child(title);
-
-        this._totalLabel = new St.Label({
-            text: '',
-            style_class: 'info-center-section-title',
-            x_expand: true,
-            x_align: Clutter.ActorAlign.END,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        titleRow.add_child(this._totalLabel);
-        this._box.add_child(titleRow);
+        const totals = buildTotalsSection(menu, 'Hubstaff time — this month');
+        this._separator = totals.separator;
+        this._item = totals.item;
+        this._totalLabel = totals.totalLabel;
+        this._rowsBox = totals.rowsBox;
 
         // Hovering the title/total row reveals the estimated month earnings.
         // Bound once here (the row is persistent); it reads the latest text
         // from this._totalTooltip, set on each render.
-        this._tooltip.bind(titleRow, () => this._totalTooltip);
-
-        this._rowsBox = new St.BoxLayout({
-            vertical: true,
-            style_class: 'info-center-redmine-rows',
-        });
-        this._box.add_child(this._rowsBox);
-
-        this._item = new PopupMenu.PopupBaseMenuItem({
-            reactive: false,
-            can_focus: false,
-        });
-        this._item.add_child(this._box);
-        menu.addMenuItem(this._item);
-
-        // Hidden until a personal access token is configured.
-        this._separator.hide();
-        this._item.hide();
+        this._tooltip.bind(totals.titleRow, () => this._totalTooltip);
     }
 
     // The active refresh token: the rotated one once we've exchanged at least
@@ -147,7 +106,7 @@ export class Hubstaff {
         }
 
         const now = GLib.DateTime.new_now_local();
-        const from = `${now.get_year()}-${String(now.get_month()).padStart(2, '0')}-01`;
+        const from = now.format('%Y-%m-01');
         const to = now.format('%Y-%m-%d');
 
         this._ensureAccessToken((token) => {
@@ -467,7 +426,7 @@ export class Hubstaff {
             .sort((a, b) => b[1] - a[1]);
 
         const total = entries.reduce((sum, [, seconds]) => sum + seconds, 0);
-        this._totalLabel.set_text(total > 0 ? this._formatSeconds(total) : '');
+        this._totalLabel.set_text(total > 0 ? formatHM(total / 3600) : '');
 
         // Month earnings tooltip on the title row — only when there is something
         // to show (rate > 0); an empty string disables the tooltip entirely.
@@ -477,30 +436,13 @@ export class Hubstaff {
             : '';
 
         if (entries.length === 0) {
-            this._rowsBox.add_child(new St.Label({
-                text: 'No time tracked',
-                style_class: 'info-center-reset-label',
-            }));
+            this._rowsBox.add_child(messageLabel('No time tracked'));
         } else {
             for (const [pid, seconds] of entries) {
                 const name = namesByProject[pid] ?? `Project #${pid}`;
 
-                const row = new St.BoxLayout({ vertical: false });
-                const nameLabel = new St.Label({
-                    text: name,
-                    style_class: 'info-center-reset-label',
-                    y_align: Clutter.ActorAlign.CENTER,
-                });
-                row.add_child(nameLabel);
-
-                const valueLabel = new St.Label({
-                    text: this._formatSeconds(seconds),
-                    style_class: 'info-center-percent-label',
-                    x_expand: true,
-                    x_align: Clutter.ActorAlign.END,
-                    y_align: Clutter.ActorAlign.CENTER,
-                });
-                row.add_child(valueLabel);
+                const row = addTotalsRow(
+                    this._rowsBox, name, formatHM(seconds / 3600));
 
                 // Per-project earnings tooltip (only when we have a rate).
                 const earned = earningsFor(seconds);
@@ -508,8 +450,6 @@ export class Hubstaff {
                     const text = `Earned: ${formatMoney(earned, currency, decimals)}`;
                     this._tooltip.bind(row, () => text);
                 }
-
-                this._rowsBox.add_child(row);
             }
         }
 
@@ -552,18 +492,8 @@ export class Hubstaff {
         this._totalTooltip = '';
         this._totalLabel.set_text('');
         this._rowsBox.destroy_all_children();
-        this._rowsBox.add_child(new St.Label({
-            text,
-            style_class: 'info-center-reset-label',
-        }));
+        this._rowsBox.add_child(messageLabel(text));
         this._separator.show();
         this._item.show();
-    }
-
-    _formatSeconds(totalSeconds) {
-        const totalMinutes = Math.round(totalSeconds / 60);
-        const h = Math.floor(totalMinutes / 60);
-        const m = totalMinutes % 60;
-        return `${h}:${String(m).padStart(2, '0')}`;
     }
 }

@@ -8,6 +8,7 @@ import Soup from 'gi://Soup';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {Tooltip, formatMoney} from './tooltip.js';
+import {buildTotalsSection, addTotalsRow, messageLabel, formatHM} from './sections.js';
 
 // Owns the Redmine menu sections: the "Today" / "Tomorrow" issue lists and the
 // per-project "this month" time totals. All sections are hidden until Redmine
@@ -47,54 +48,16 @@ export class Redmine {
         this._todaySection = this._createSection(menu, 'Redmine Issues — Today');
         this._tomorrowSection = this._createSection(menu, 'Redmine Issues — Tomorrow');
 
-        this._separator = new PopupMenu.PopupSeparatorMenuItem();
-        this._separator.add_style_class_name('info-center-separator');
-        menu.addMenuItem(this._separator);
-
-        this._box = new St.BoxLayout({
-            style_class: 'info-center-usage-section',
-            vertical: true,
-        });
-        // Title row: heading on the left, the running month total on the right.
-        const titleRow = new St.BoxLayout({ vertical: false });
-        const title = new St.Label({
-            text: 'Redmine time — this month',
-            style_class: 'info-center-section-title',
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        titleRow.add_child(title);
-
-        this._totalLabel = new St.Label({
-            text: '',
-            style_class: 'info-center-section-title',
-            x_expand: true,
-            x_align: Clutter.ActorAlign.END,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        titleRow.add_child(this._totalLabel);
-        this._box.add_child(titleRow);
+        const totals = buildTotalsSection(menu, 'Redmine time — this month');
+        this._separator = totals.separator;
+        this._item = totals.item;
+        this._totalLabel = totals.totalLabel;
+        this._rowsBox = totals.rowsBox;
 
         // Hovering the title/total row reveals the estimated month earnings.
         // Bound once here (the row is persistent); it reads the latest text
         // from this._totalTooltip, set on each render.
-        this._tooltip.bind(titleRow, () => this._totalTooltip);
-
-        this._rowsBox = new St.BoxLayout({
-            vertical: true,
-            style_class: 'info-center-redmine-rows',
-        });
-        this._box.add_child(this._rowsBox);
-
-        this._item = new PopupMenu.PopupBaseMenuItem({
-            reactive: false,
-            can_focus: false,
-        });
-        this._item.add_child(this._box);
-        menu.addMenuItem(this._item);
-
-        // Hidden until Redmine is configured with at least one selected project.
-        this._separator.hide();
-        this._item.hide();
+        this._tooltip.bind(totals.titleRow, () => this._totalTooltip);
     }
 
     _createSection(menu, title) {
@@ -165,7 +128,7 @@ export class Redmine {
         // project is selected, even though task sections still run.
         if (projectIds.length > 0) {
             const now = GLib.DateTime.new_now_local();
-            const from = `${now.get_year()}-${String(now.get_month()).padStart(2, '0')}-01`;
+            const from = now.format('%Y-%m-01');
             const to = now.format('%Y-%m-%d');
             this._fetchTimeEntries(baseUrl, apiKey, from, to, 0, {}, {}, cancellable);
         } else {
@@ -197,6 +160,14 @@ export class Redmine {
         const url = `${baseUrl}/issues.json?assigned_to_id=me&status_id=*` +
             `&limit=${limit}&offset=${offset}`;
         const message = Soup.Message.new('GET', url);
+        // Soup.Message.new returns null when the URL can't be parsed (e.g. a
+        // server URL entered without a scheme). Without this guard the null
+        // deref would throw synchronously out of refresh() and kill the GLib
+        // timer source that called it.
+        if (!message) {
+            this._setIssuesMessage('Error: invalid Redmine URL');
+            return;
+        }
         message.request_headers.append('X-Redmine-API-Key', apiKey);
 
         session.send_and_read_async(
@@ -290,10 +261,7 @@ export class Redmine {
         section.rowsBox.destroy_all_children();
 
         if (issues.length === 0) {
-            section.rowsBox.add_child(new St.Label({
-                text: 'No tasks',
-                style_class: 'info-center-reset-label',
-            }));
+            section.rowsBox.add_child(messageLabel('No tasks'));
         } else {
             const baseUrl = this._settings.get_string('redmine-url')
                 .trim().replace(/\/+$/, '');
@@ -345,10 +313,7 @@ export class Redmine {
     _setIssuesMessage(text) {
         for (const section of [this._todaySection, this._tomorrowSection]) {
             section.rowsBox.destroy_all_children();
-            section.rowsBox.add_child(new St.Label({
-                text,
-                style_class: 'info-center-reset-label',
-            }));
+            section.rowsBox.add_child(messageLabel(text));
             section.separator.show();
             section.item.show();
         }
@@ -364,6 +329,11 @@ export class Redmine {
         const url = `${baseUrl}/time_entries.json?user_id=me` +
             `&from=${from}&to=${to}&limit=${limit}&offset=${offset}`;
         const message = Soup.Message.new('GET', url);
+        // Same null-URL guard as _fetchIssues.
+        if (!message) {
+            this._setMessage('Error: invalid Redmine URL');
+            return;
+        }
         message.request_headers.append('X-Redmine-API-Key', apiKey);
 
         session.send_and_read_async(
@@ -439,7 +409,7 @@ export class Redmine {
 
         const total = projectIds.reduce(
             (sum, id) => sum + (hoursByProject[id] ?? 0), 0);
-        this._totalLabel.set_text(total > 0 ? this._formatHours(total) : '');
+        this._totalLabel.set_text(total > 0 ? formatHM(total) : '');
 
         // Month earnings tooltip on the title row — only when there is something
         // to show (rate > 0); an empty string disables the tooltip entirely.
@@ -452,22 +422,7 @@ export class Redmine {
             const name = namesByProject[id] ?? storedNames[id] ?? `Project #${id}`;
             const hours = hoursByProject[id] ?? 0;
 
-            const row = new St.BoxLayout({ vertical: false });
-            const nameLabel = new St.Label({
-                text: name,
-                style_class: 'info-center-reset-label',
-                y_align: Clutter.ActorAlign.CENTER,
-            });
-            row.add_child(nameLabel);
-
-            const valueLabel = new St.Label({
-                text: this._formatHours(hours),
-                style_class: 'info-center-percent-label',
-                x_expand: true,
-                x_align: Clutter.ActorAlign.END,
-                y_align: Clutter.ActorAlign.CENTER,
-            });
-            row.add_child(valueLabel);
+            const row = addTotalsRow(this._rowsBox, name, formatHM(hours));
 
             // Per-project earnings tooltip (only when we have a rate).
             const earned = earningsFor(hours);
@@ -475,8 +430,6 @@ export class Redmine {
                 const text = `Earned: ${formatMoney(earned, currency, decimals)}`;
                 this._tooltip.bind(row, () => text);
             }
-
-            this._rowsBox.add_child(row);
         }
 
         this._separator.show();
@@ -501,18 +454,8 @@ export class Redmine {
         this._totalTooltip = '';
         this._totalLabel.set_text('');
         this._rowsBox.destroy_all_children();
-        this._rowsBox.add_child(new St.Label({
-            text,
-            style_class: 'info-center-reset-label',
-        }));
+        this._rowsBox.add_child(messageLabel(text));
         this._separator.show();
         this._item.show();
-    }
-
-    _formatHours(hours) {
-        const totalMinutes = Math.round(hours * 60);
-        const h = Math.floor(totalMinutes / 60);
-        const m = totalMinutes % 60;
-        return `${h}:${String(m).padStart(2, '0')}`;
     }
 }

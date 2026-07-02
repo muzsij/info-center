@@ -66,11 +66,6 @@
       <summary>Selected Redmine task statuses</summary>
       <description>IDs of the Redmine issue statuses that count for the Today and Tomorrow sections.</description>
     </key>
-    <key name="redmine-status-names" type="a{ss}">
-      <default>{}</default>
-      <summary>Redmine status names</summary>
-      <description>Map of Redmine issue status ID to display name, used to label statuses in the preferences.</description>
-    </key>
     <key name="redmine-hourly-rate" type="d">
       <default>0.0</default>
       <summary>Redmine hourly rate</summary>

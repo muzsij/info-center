@@ -66,6 +66,26 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._redmine = new Redmine(this._settings, getSession);
         this._hubstaff = new Hubstaff(this._settings, getSession);
 
+        // One refresh timer per feature module, each driven by its own
+        // interval key; started/stopped/restarted by name via _startTimer & co.
+        this._timers = {
+            claude: {
+                intervalKey: 'refresh-interval',
+                module: this._claude,
+                id: null,
+            },
+            redmine: {
+                intervalKey: 'redmine-refresh-interval',
+                module: this._redmine,
+                id: null,
+            },
+            hubstaff: {
+                intervalKey: 'hubstaff-refresh-interval',
+                module: this._hubstaff,
+                id: null,
+            },
+        };
+
         this._createMenu();
 
         this._updateDisplayMode();
@@ -74,11 +94,11 @@ class InfoCenterIndicator extends PanelMenu.Button {
 
         this._settingsChangedId = this._settings.connect('changed', (settings, key) => {
             if (key === 'refresh-interval') {
-                this._restartClaudeTimer();
+                this._restartTimer('claude');
             } else if (key === 'redmine-refresh-interval') {
-                this._restartRedmineTimer();
+                this._restartTimer('redmine');
             } else if (key === 'hubstaff-refresh-interval') {
-                this._restartHubstaffTimer();
+                this._restartTimer('hubstaff');
             } else if (key === 'hubstaff-personal-access-token') {
                 // The user-entered seed PAT changed (the rotating token and the
                 // access-token cache are written by us and are not watched here,
@@ -116,12 +136,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
             }
         });
 
-        this._claude.refresh();
-        this._redmine.refresh();
-        this._hubstaff.refresh();
-        this._startClaudeTimer();
-        this._startRedmineTimer();
-        this._startHubstaffTimer();
+        this._refreshNow();
     }
 
     _createMenu() {
@@ -147,42 +162,25 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this.menu.addMenuItem(settingsItem);
     }
 
-    // Manual refresh: fetch both feature modules now and reset both refresh
-    // timers so the next automatic tick lands a full interval after this manual
-    // refresh, instead of firing redundantly moments later.
+    // Manual refresh (also the initial one): fetch every feature module now and
+    // reset its refresh timer so the next automatic tick lands a full interval
+    // after this refresh, instead of firing redundantly moments later.
     _refreshNow() {
-        this._claude.refresh();
-        this._redmine.refresh();
-        this._hubstaff.refresh();
-        this._restartClaudeTimer();
-        this._restartRedmineTimer();
-        this._restartHubstaffTimer();
+        for (const name of Object.keys(this._timers)) {
+            this._timers[name].module.refresh();
+            this._restartTimer(name);
+        }
     }
 
     _updateDisplayMode() {
         const mode = this._settings.get_string('display-mode');
-        if (mode === 'bar') {
-            this._panelProgressBg.show();
-            this._label.hide();
-            this._label.set_style('margin-left: 0;');
-        } else if (mode === 'both') {
-            this._panelProgressBg.show();
-            this._label.show();
-            this._label.set_style('margin-left: 6px;');
-        } else {
-            this._panelProgressBg.hide();
-            this._label.show();
-            this._label.set_style('margin-left: 0;');
-        }
+        this._panelProgressBg.visible = mode === 'bar' || mode === 'both';
+        this._label.visible = mode !== 'bar';
+        this._label.set_style(mode === 'both' ? 'margin-left: 6px;' : 'margin-left: 0;');
     }
 
     _updateIconVisibility() {
-        const showIcon = this._settings.get_boolean('show-icon');
-        if (showIcon) {
-            this._icon.show();
-        } else {
-            this._icon.hide();
-        }
+        this._icon.visible = this._settings.get_boolean('show-icon');
     }
 
     _createSession() {
@@ -247,82 +245,35 @@ class InfoCenterIndicator extends PanelMenu.Button {
         }
     }
 
-    _startClaudeTimer() {
-        const interval = this._settings.get_int('refresh-interval');
-        this._claudeTimerId = GLib.timeout_add_seconds(
+    _startTimer(name) {
+        const timer = this._timers[name];
+        timer.id = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT,
-            interval,
+            this._settings.get_int(timer.intervalKey),
             () => {
-                this._claude.refresh();
+                timer.module.refresh();
                 return GLib.SOURCE_CONTINUE;
             }
         );
     }
 
-    _stopClaudeTimer() {
-        if (this._claudeTimerId) {
-            GLib.source_remove(this._claudeTimerId);
-            this._claudeTimerId = null;
+    _stopTimer(name) {
+        const timer = this._timers[name];
+        if (timer.id) {
+            GLib.source_remove(timer.id);
+            timer.id = null;
         }
     }
 
-    _restartClaudeTimer() {
-        this._stopClaudeTimer();
-        this._startClaudeTimer();
-    }
-
-    _startRedmineTimer() {
-        const interval = this._settings.get_int('redmine-refresh-interval');
-        this._redmineTimerId = GLib.timeout_add_seconds(
-            GLib.PRIORITY_DEFAULT,
-            interval,
-            () => {
-                this._redmine.refresh();
-                return GLib.SOURCE_CONTINUE;
-            }
-        );
-    }
-
-    _stopRedmineTimer() {
-        if (this._redmineTimerId) {
-            GLib.source_remove(this._redmineTimerId);
-            this._redmineTimerId = null;
-        }
-    }
-
-    _restartRedmineTimer() {
-        this._stopRedmineTimer();
-        this._startRedmineTimer();
-    }
-
-    _startHubstaffTimer() {
-        const interval = this._settings.get_int('hubstaff-refresh-interval');
-        this._hubstaffTimerId = GLib.timeout_add_seconds(
-            GLib.PRIORITY_DEFAULT,
-            interval,
-            () => {
-                this._hubstaff.refresh();
-                return GLib.SOURCE_CONTINUE;
-            }
-        );
-    }
-
-    _stopHubstaffTimer() {
-        if (this._hubstaffTimerId) {
-            GLib.source_remove(this._hubstaffTimerId);
-            this._hubstaffTimerId = null;
-        }
-    }
-
-    _restartHubstaffTimer() {
-        this._stopHubstaffTimer();
-        this._startHubstaffTimer();
+    _restartTimer(name) {
+        this._stopTimer(name);
+        this._startTimer(name);
     }
 
     destroy() {
-        this._stopClaudeTimer();
-        this._stopRedmineTimer();
-        this._stopHubstaffTimer();
+        for (const name of Object.keys(this._timers)) {
+            this._stopTimer(name);
+        }
         if (this._redmineRefreshId) {
             GLib.source_remove(this._redmineRefreshId);
             this._redmineRefreshId = null;
@@ -349,9 +300,27 @@ export default class InfoCenterExtension extends Extension {
 
         this._placementChangedId = this._settings.connect('changed', (settings, key) => {
             if (key === 'panel-box' || key === 'panel-position') {
-                this._placeIndicator();
+                this._schedulePlaceIndicator();
             }
         });
+    }
+
+    // Re-placing destroys and re-creates the whole indicator (three fetches);
+    // debounce so spinning the position SpinRow in prefs rebuilds once, not
+    // once per click.
+    _schedulePlaceIndicator() {
+        if (this._placeTimeoutId) {
+            GLib.source_remove(this._placeTimeoutId);
+        }
+        this._placeTimeoutId = GLib.timeout_add(
+            GLib.PRIORITY_DEFAULT,
+            400,
+            () => {
+                this._placeTimeoutId = null;
+                this._placeIndicator();
+                return GLib.SOURCE_REMOVE;
+            }
+        );
     }
 
     _placeIndicator() {
@@ -375,6 +344,10 @@ export default class InfoCenterExtension extends Extension {
     }
 
     disable() {
+        if (this._placeTimeoutId) {
+            GLib.source_remove(this._placeTimeoutId);
+            this._placeTimeoutId = null;
+        }
         if (this._placementChangedId) {
             this._settings.disconnect(this._placementChangedId);
             this._placementChangedId = null;
