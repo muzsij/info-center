@@ -11,9 +11,25 @@ import {
     updateProgressBar,
     updatePanelProgressBar,
     formatResetCountdown,
+    titleWithPlan,
+    formatPlanName,
 } from './usageSection.js';
 
 const API_URL = 'https://api.anthropic.com/api/oauth/usage';
+
+// Build the plan tag shown in the section titles from the two credential
+// fields: subscriptionType ("max") gives the name, and rateLimitTier
+// ("default_claude_max_5x") contributes the trailing multiplier → "Max 5x".
+function formatClaudePlan(subscriptionType, rateLimitTier) {
+    const name = formatPlanName(subscriptionType);
+    if (!name) {
+        return '';
+    }
+    const multiplier = typeof rateLimitTier === 'string'
+        ? rateLimitTier.match(/(\d+x)$/)
+        : null;
+    return multiplier ? `${name} ${multiplier[1]}` : name;
+}
 
 // When the on-disk OAuth token is stale (expired, or rejected with 401), Claude
 // Code rewrites .credentials.json with a fresh token the next time it runs. We
@@ -41,6 +57,9 @@ export class ClaudeUsage {
         this._menu = null;
         this._openStateId = 0;
         this._reapplyId = 0;
+        this._plan = '';
+        this._compact = false;
+        this._titles = [];
     }
 
     destroy() {
@@ -160,7 +179,9 @@ export class ClaudeUsage {
         // Compact: one "Claude" block with both windows. Otherwise two separate
         // sections split by a separator. Either way the same widget fields are
         // populated, so the render code below is layout-agnostic.
-        if (this._settings.get_boolean('claude-compact-view')) {
+        this._compact = this._settings.get_boolean('claude-compact-view');
+
+        if (this._compact) {
             const compact = buildCompactUsageSection(menu, 'Claude', '5 hour', '7-day');
             this._fiveHourPercent = compact.five.percent;
             this._fiveHourProgressBar = compact.five.bar;
@@ -170,6 +191,8 @@ export class ClaudeUsage {
             this._sevenDayProgressBar = compact.weekly.bar;
             this._sevenDayProgressBg = compact.weekly.bg;
             this._sevenDayResetLabel = compact.weekly.resetLabel;
+            this._titles = [{ label: compact.titleLabel, base: 'Claude' }];
+            this._applyPlan();
             return;
         }
 
@@ -188,6 +211,21 @@ export class ClaudeUsage {
         this._sevenDayProgressBar = seven.bar;
         this._sevenDayProgressBg = seven.bg;
         this._sevenDayResetLabel = seven.resetLabel;
+
+        this._titles = [
+            { label: five.titleLabel, base: 'Claude 5-Hour Usage' },
+            { label: seven.titleLabel, base: 'Claude 7-Day Usage' },
+        ];
+        this._applyPlan();
+    }
+
+    // Rewrite each section title with the current plan tag (e.g. "Max 5x").
+    // Called on build (so a rebuilt menu shows the last known plan) and after
+    // every credential read (so the tag tracks a plan change).
+    _applyPlan() {
+        for (const t of this._titles) {
+            t.label.set_text(titleWithPlan(t.base, this._plan, this._compact));
+        }
     }
 
     refresh() {
@@ -218,6 +256,16 @@ export class ClaudeUsage {
                 const token = json.claudeAiOauth?.accessToken;
                 const expiresAt = json.claudeAiOauth?.expiresAt;
 
+                // Update the plan tag straight from the credentials file — it's
+                // known regardless of whether the token is fresh, expired, or
+                // missing, so the title stays correct through refresh/error
+                // states too.
+                this._plan = formatClaudePlan(
+                    json.claudeAiOauth?.subscriptionType,
+                    json.claudeAiOauth?.rateLimitTier
+                );
+                this._applyPlan();
+
                 if (!token) {
                     this._setMessage('No token', 'No credentials', '—');
                     return;
@@ -238,6 +286,8 @@ export class ClaudeUsage {
                     return;
                 }
                 console.error('Info Center: Failed to read credentials:', e.message);
+                this._plan = '';
+                this._applyPlan();
                 this._setMessage('No token', 'No credentials', '—');
             }
         });

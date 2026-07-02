@@ -18,10 +18,11 @@ export function buildUsageSection(menu, title) {
         vertical: true,
     });
     const header = new St.BoxLayout({ vertical: false });
-    header.add_child(new St.Label({
+    const titleLabel = new St.Label({
         text: title,
         style_class: 'info-center-section-title',
-    }));
+    });
+    header.add_child(titleLabel);
     const percent = new St.Label({
         text: '...',
         style_class: 'info-center-percent-label',
@@ -58,7 +59,7 @@ export function buildUsageSection(menu, title) {
     item.add_child(box);
     menu.addMenuItem(item);
 
-    return { percent, bar, bg, resetLabel, item };
+    return { percent, bar, bg, resetLabel, item, titleLabel };
 }
 
 // Compact variant of the two-window usage block: a single dropdown item with
@@ -72,10 +73,11 @@ export function buildCompactUsageSection(menu, title, fiveTag, weekTag) {
         style_class: 'info-center-usage-section',
         vertical: true,
     });
-    box.add_child(new St.Label({
+    const titleLabel = new St.Label({
         text: title,
         style_class: 'info-center-section-title',
-    }));
+    });
+    box.add_child(titleLabel);
 
     const five = buildCompactWindow(box, fiveTag);
     const weekly = buildCompactWindow(box, weekTag);
@@ -87,7 +89,7 @@ export function buildCompactUsageSection(menu, title, fiveTag, weekTag) {
     item.add_child(box);
     menu.addMenuItem(item);
 
-    return { five, weekly, item };
+    return { five, weekly, item, titleLabel };
 }
 
 // One window inside a compact block: a bar row and a reset row appended to
@@ -167,6 +169,33 @@ export function updatePanelProgressBar(panelBar, usage) {
     const maxWidth = 50;
     const width = Math.round((Math.min(100, Math.max(0, usage)) / 100) * maxWidth);
     panelBar.set_width(width);
+}
+
+// Insert a plan/subscription tag into a section title. Non-compact titles read
+// "Claude (Max 5x) 5-Hour Usage" (tag in parens after the brand word); compact
+// titles are just the brand ("Claude") and read "Claude · Max 5x". An empty
+// plan restores the bare base title.
+export function titleWithPlan(base, plan, compact) {
+    if (!plan) {
+        return base;
+    }
+    if (compact) {
+        return `${base} · ${plan}`;
+    }
+    const sp = base.indexOf(' ');
+    if (sp === -1) {
+        return `${base} (${plan})`;
+    }
+    return `${base.slice(0, sp)} (${plan})${base.slice(sp)}`;
+}
+
+// Capitalize a plan/level identifier for display ("pro" → "Pro", "max" → "Max").
+// Empty/non-string input yields '' so the title falls back to its bare form.
+export function formatPlanName(type) {
+    if (!type || typeof type !== 'string') {
+        return '';
+    }
+    return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
 // Countdown to a reset moment given as a Date, an ISO string, or a ms epoch

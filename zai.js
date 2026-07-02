@@ -11,6 +11,8 @@ import {
     updateProgressBar,
     updatePanelProgressBar,
     formatResetCountdown,
+    titleWithPlan,
+    formatPlanName,
 } from './usageSection.js';
 
 // Z.ai GLM Coding Plan usage. The quota endpoint returns a `data.limits` array;
@@ -37,6 +39,9 @@ export class ZaiUsage {
         this._menu = null;
         this._openStateId = 0;
         this._reapplyId = 0;
+        this._plan = '';
+        this._compact = false;
+        this._titles = [];
     }
 
     destroy() {
@@ -78,7 +83,9 @@ export class ZaiUsage {
         // sections split by an inner separator. Either way the same widget
         // fields are populated, and `_sectionItems` lists the menu items to
         // hide/show together (the leading separator plus the section item(s)).
-        if (this._settings.get_boolean('zai-compact-view')) {
+        this._compact = this._settings.get_boolean('zai-compact-view');
+
+        if (this._compact) {
             const compact = buildCompactUsageSection(menu, 'GLM', '5 hour', '7-day');
             this._fiveHourPercent = compact.five.percent;
             this._fiveHourProgressBar = compact.five.bar;
@@ -89,6 +96,7 @@ export class ZaiUsage {
             this._weeklyProgressBg = compact.weekly.bg;
             this._weeklyResetLabel = compact.weekly.resetLabel;
             this._sectionItems = [this._separator, compact.item];
+            this._titles = [{ label: compact.titleLabel, base: 'GLM' }];
         } else {
             const five = buildUsageSection(menu, 'GLM 5-Hour Usage');
             this._fiveHourPercent = five.percent;
@@ -107,10 +115,25 @@ export class ZaiUsage {
             this._weeklyResetLabel = weekly.resetLabel;
 
             this._sectionItems = [this._separator, five.item, innerSeparator, weekly.item];
+            this._titles = [
+                { label: five.titleLabel, base: 'GLM 5-Hour Usage' },
+                { label: weekly.titleLabel, base: 'GLM Weekly Usage' },
+            ];
         }
+
+        this._applyPlan();
 
         // Hidden until a key is configured (a fetch un-hides it).
         this._setSectionsVisible(this.isConfigured());
+    }
+
+    // Rewrite each section title with the current plan tag (e.g. "Pro"). Called
+    // on build (so a rebuilt menu shows the last known plan) and on every fetch
+    // (the level ships in the quota response).
+    _applyPlan() {
+        for (const t of this._titles) {
+            t.label.set_text(titleWithPlan(t.base, this._plan, this._compact));
+        }
     }
 
     // Toggle the whole GLM block (section item(s) + separators) so users
@@ -136,6 +159,8 @@ export class ZaiUsage {
             // Not configured: blank the panel number and hide the sections.
             this._label.set_text('');
             updatePanelProgressBar(this._panelProgressBar, 0);
+            this._plan = '';
+            this._applyPlan();
             this._setSectionsVisible(false);
             return;
         }
@@ -199,6 +224,10 @@ export class ZaiUsage {
     }
 
     _updateDisplay(data) {
+        // The plan tier ("pro"/"lite"/"max") rides along with the quota data.
+        this._plan = formatPlanName(data?.level);
+        this._applyPlan();
+
         const limits = Array.isArray(data?.limits) ? data.limits : [];
         const five = this._findLimit(limits, 3, 5);
         const weekly = this._findLimit(limits, 6, 1);
@@ -230,6 +259,10 @@ export class ZaiUsage {
     // labels, and clear the bars and reset labels — a stale bar fill
     // contradicting the error text would be misleading.
     _setMessage(label, fiveHour, weekly) {
+        // Drop any stale plan tag so an error state doesn't keep advertising a
+        // tier we can no longer confirm.
+        this._plan = '';
+        this._applyPlan();
         this._label.set_text(label);
         this._fiveHourPercent.set_text(fiveHour);
         this._weeklyPercent.set_text(weekly);
