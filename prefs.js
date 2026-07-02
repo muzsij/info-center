@@ -21,6 +21,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
 
         this._buildSettingsPage(window, settings);
         this._buildClaudePage(window, settings);
+        this._buildZaiPage(window, settings);
         this._buildRedminePage(window, settings);
         this._buildHubstaffPage(window, settings);
     }
@@ -174,7 +175,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
 
         const networkGroup = new Adw.PreferencesGroup({
             title: 'Network',
-            description: 'Proxy used for all outgoing requests (Claude and Redmine)',
+            description: 'Proxy used for all outgoing requests (Claude, GLM, Redmine and Hubstaff)',
         });
         page.add(networkGroup);
 
@@ -269,6 +270,74 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
             Gio.SettingsBindFlags.DEFAULT
         );
         displayGroup.add(showIconRow);
+    }
+
+    _buildZaiPage(window, settings) {
+        const page = new Adw.PreferencesPage({
+            title: 'GLM',
+            icon_name: 'utilities-system-monitor-symbolic',
+        });
+        window.add(page);
+
+        this._buildGeneralGroup(page, settings, 'zai-refresh-interval',
+            'Configure how z.ai GLM Coding Plan usage is refreshed',
+            'How often to refresh GLM usage data (in seconds)');
+
+        const connectionGroup = new Adw.PreferencesGroup({
+            title: 'Connection',
+            description: 'Show your z.ai GLM Coding Plan 5-hour and weekly usage',
+        });
+        page.add(connectionGroup);
+
+        const apiKeyRow = new Adw.PasswordEntryRow({
+            title: 'API Key',
+            show_apply_button: true,
+        });
+        apiKeyRow.set_text(settings.get_string('zai-api-key'));
+        apiKeyRow.connect('apply', () => {
+            settings.set_string('zai-api-key', apiKeyRow.get_text().trim());
+        });
+        connectionGroup.add(apiKeyRow);
+
+        const apiKeyHint = new Gtk.Label({
+            label: 'Create one at z.ai/manage-apikey/apikey-list (leave empty to ' +
+                'disable). When set, GLM 5-hour and weekly usage appears in the ' +
+                'panel next to Claude and in the dropdown.',
+            xalign: 0,
+            wrap: true,
+            css_classes: ['dim-label', 'caption'],
+            margin_start: 12,
+            margin_top: 4,
+        });
+        connectionGroup.add(apiKeyHint);
+
+        const displayGroup = new Adw.PreferencesGroup({
+            title: 'Panel Display',
+            description: 'How the GLM number is shown in the panel, independently ' +
+                'of Claude',
+        });
+        page.add(displayGroup);
+
+        const displayModeRow = new Adw.ComboRow({
+            title: 'Display Mode',
+            subtitle: 'Show GLM usage as text percentage, progress bar, or both',
+        });
+
+        const displayModeModel = new Gtk.StringList();
+        displayModeModel.append('Text (percentage)');
+        displayModeModel.append('Progress Bar');
+        displayModeModel.append('Both');
+        displayModeRow.set_model(displayModeModel);
+
+        const modes = ['text', 'bar', 'both'];
+        const currentMode = settings.get_string('zai-display-mode');
+        displayModeRow.set_selected(Math.max(0, modes.indexOf(currentMode)));
+
+        displayModeRow.connect('notify::selected', () => {
+            settings.set_string('zai-display-mode', modes[displayModeRow.get_selected()]);
+        });
+
+        displayGroup.add(displayModeRow);
     }
 
     _buildRedminePage(window, settings) {

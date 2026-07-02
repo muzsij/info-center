@@ -1,10 +1,16 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
-import St from 'gi://St';
-import Clutter from 'gi://Clutter';
 import Soup from 'gi://Soup';
 
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+
+import {
+    buildUsageSection,
+    applyBarWidth,
+    updateProgressBar,
+    updatePanelProgressBar,
+    formatResetCountdown,
+} from './usageSection.js';
 
 const API_URL = 'https://api.anthropic.com/api/oauth/usage';
 
@@ -90,9 +96,9 @@ export class ClaudeUsage {
         this._sevenDayPercent.set_text(sevenDay);
         this._fiveHourResetLabel.set_text('—');
         this._sevenDayResetLabel.set_text('—');
-        this._updatePanelProgressBar(0);
-        this._updateProgressBar(this._fiveHourProgressBar, this._fiveHourProgressBg, 0);
-        this._updateProgressBar(this._sevenDayProgressBar, this._sevenDayProgressBg, 0);
+        updatePanelProgressBar(this._panelProgressBar, 0);
+        updateProgressBar(this._fiveHourProgressBar, this._fiveHourProgressBg, 0);
+        updateProgressBar(this._sevenDayProgressBar, this._sevenDayProgressBg, 0);
     }
 
     // Soft state for a stale/refreshing token: keep the last good percentages
@@ -150,7 +156,7 @@ export class ClaudeUsage {
             }
         });
 
-        const five = this._buildUsageSection(menu, 'Claude 5-Hour Usage');
+        const five = buildUsageSection(menu, 'Claude 5-Hour Usage');
         this._fiveHourPercent = five.percent;
         this._fiveHourProgressBar = five.bar;
         this._fiveHourProgressBg = five.bg;
@@ -160,62 +166,11 @@ export class ClaudeUsage {
         separator.add_style_class_name('info-center-separator');
         menu.addMenuItem(separator);
 
-        const seven = this._buildUsageSection(menu, 'Claude 7-Day Usage');
+        const seven = buildUsageSection(menu, 'Claude 7-Day Usage');
         this._sevenDayPercent = seven.percent;
         this._sevenDayProgressBar = seven.bar;
         this._sevenDayProgressBg = seven.bg;
         this._sevenDayResetLabel = seven.resetLabel;
-    }
-
-    // One usage section: title + right-aligned percent, a progress bar, and a
-    // reset-time label. The 5-hour and 7-day sections are identical in shape.
-    _buildUsageSection(menu, title) {
-        const box = new St.BoxLayout({
-            style_class: 'info-center-usage-section',
-            vertical: true,
-        });
-        const header = new St.BoxLayout({ vertical: false });
-        header.add_child(new St.Label({
-            text: title,
-            style_class: 'info-center-section-title',
-        }));
-        const percent = new St.Label({
-            text: '...',
-            style_class: 'info-center-percent-label',
-            x_expand: true,
-            x_align: Clutter.ActorAlign.END,
-        });
-        header.add_child(percent);
-        box.add_child(header);
-
-        const bg = new St.Widget({
-            style_class: 'info-center-progress-bg',
-            x_expand: true,
-        });
-        const bar = new St.Widget({
-            style_class: 'info-center-progress-bar usage-low',
-        });
-        bg.add_child(bar);
-        // The bg stretches to the menu width, so the fill width must track the
-        // bg's *actual* allocated width, not a hardcoded max — recompute it
-        // whenever the bg is (re)allocated (e.g. the first time the menu opens).
-        bg.connect('notify::width', () => this._applyBarWidth(bar, bg));
-        box.add_child(bg);
-
-        const resetLabel = new St.Label({
-            text: 'Resets: ...',
-            style_class: 'info-center-reset-label',
-        });
-        box.add_child(resetLabel);
-
-        const item = new PopupMenu.PopupBaseMenuItem({
-            reactive: false,
-            can_focus: false,
-        });
-        item.add_child(box);
-        menu.addMenuItem(item);
-
-        return { percent, bar, bg, resetLabel };
     }
 
     refresh() {
@@ -333,19 +288,19 @@ export class ClaudeUsage {
 
         this._label.set_text(`${Math.round(fiveHour)}%`);
 
-        this._updatePanelProgressBar(fiveHour);
+        updatePanelProgressBar(this._panelProgressBar, fiveHour);
 
         this._fiveHourPercent.set_text(`${fiveHour.toFixed(1)}%`);
-        this._updateProgressBar(this._fiveHourProgressBar, this._fiveHourProgressBg, fiveHour);
+        updateProgressBar(this._fiveHourProgressBar, this._fiveHourProgressBg, fiveHour);
 
         this._sevenDayPercent.set_text(`${sevenDay.toFixed(1)}%`);
-        this._updateProgressBar(this._sevenDayProgressBar, this._sevenDayProgressBg, sevenDay);
+        updateProgressBar(this._sevenDayProgressBar, this._sevenDayProgressBg, sevenDay);
 
         // Always rewrite the reset labels — otherwise a "Refreshing…" left by
         // _showRefreshing persists when a successful response omits resets_at.
         if (data.five_hour?.resets_at) {
             this._fiveHourResetLabel.set_text(
-                `Resets in ${this._formatResetTime(data.five_hour.resets_at)}`
+                `Resets in ${formatResetCountdown(data.five_hour.resets_at)}`
             );
         } else {
             this._fiveHourResetLabel.set_text('—');
@@ -353,17 +308,11 @@ export class ClaudeUsage {
 
         if (data.seven_day?.resets_at) {
             this._sevenDayResetLabel.set_text(
-                `Resets in ${this._formatResetTime(data.seven_day.resets_at)}`
+                `Resets in ${formatResetCountdown(data.seven_day.resets_at)}`
             );
         } else {
             this._sevenDayResetLabel.set_text('—');
         }
-    }
-
-    _updatePanelProgressBar(usage) {
-        const maxWidth = 50;
-        const width = Math.round((Math.min(100, Math.max(0, usage)) / 100) * maxWidth);
-        this._panelProgressBar.set_width(width);
     }
 
     // Reapply both bar fills from their stored fractions once the menu has
@@ -374,66 +323,9 @@ export class ClaudeUsage {
         }
         this._reapplyId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
             this._reapplyId = 0;
-            this._applyBarWidth(this._fiveHourProgressBar, this._fiveHourProgressBg);
-            this._applyBarWidth(this._sevenDayProgressBar, this._sevenDayProgressBg);
+            applyBarWidth(this._fiveHourProgressBar, this._fiveHourProgressBg);
+            applyBarWidth(this._sevenDayProgressBar, this._sevenDayProgressBg);
             return GLib.SOURCE_REMOVE;
         });
-    }
-
-    // Store the 0..1 fill fraction on the bar and size it against the bg's
-    // current allocated width. The width is reapplied from notify::width too,
-    // so it stays correct when the menu (and thus the bg) is resized.
-    _applyBarWidth(progressBar, bg) {
-        const fraction = progressBar._fillFraction ?? 0;
-        progressBar.set_width(Math.round(bg.get_width() * fraction));
-    }
-
-    _updateProgressBar(progressBar, bg, usage) {
-        progressBar._fillFraction = Math.min(100, Math.max(0, usage)) / 100;
-        this._applyBarWidth(progressBar, bg);
-
-        const level = usage >= 90 ? 'usage-critical'
-            : usage >= 70 ? 'usage-high'
-            : usage >= 40 ? 'usage-medium'
-            : 'usage-low';
-        for (const cls of ['usage-low', 'usage-medium', 'usage-high', 'usage-critical']) {
-            if (cls === level) {
-                progressBar.add_style_class_name(cls);
-            } else {
-                progressBar.remove_style_class_name(cls);
-            }
-        }
-    }
-
-    _formatResetTime(isoString) {
-        try {
-            const resetDate = new Date(isoString);
-            const now = new Date();
-            const diffMs = resetDate - now;
-
-            // An unparsable date yields NaN (new Date() doesn't throw, so the
-            // catch below never sees it) — without this it renders as "NaNm".
-            if (Number.isNaN(diffMs)) {
-                return '—';
-            }
-
-            if (diffMs < 0) {
-                return 'now';
-            }
-
-            const diffMins = Math.floor(diffMs / 60000);
-            const diffHours = Math.floor(diffMins / 60);
-            const diffDays = Math.floor(diffHours / 24);
-
-            if (diffDays > 0) {
-                return `${diffDays}d ${diffHours % 24}h`;
-            } else if (diffHours > 0) {
-                return `${diffHours}h ${diffMins % 60}m`;
-            } else {
-                return `${diffMins}m`;
-            }
-        } catch (e) {
-            return '—';
-        }
     }
 }

@@ -12,6 +12,7 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {ClaudeUsage} from './claudeUsage.js';
+import {ZaiUsage} from './zai.js';
 import {Redmine} from './redmine.js';
 import {Hubstaff} from './hubstaff.js';
 
@@ -55,6 +56,34 @@ class InfoCenterIndicator extends PanelMenu.Button {
         });
         this._box.add_child(this._label);
 
+        // GLM (z.ai) panel segment, shown next to the Claude number when a z.ai
+        // API key is configured. Its own dim "GLM" tag disambiguates the two
+        // percentages; its bg/label/tag visibility is governed together with
+        // the Claude widgets in _updateDisplayMode (gated on being configured).
+        this._zaiPrefix = new St.Label({
+            text: 'GLM',
+            y_align: Clutter.ActorAlign.CENTER,
+            style_class: 'info-center-zai-prefix',
+        });
+        this._box.add_child(this._zaiPrefix);
+
+        this._zaiPanelProgressBg = new St.Widget({
+            style_class: 'info-center-panel-progress-bg',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._zaiPanelProgressBar = new St.Widget({
+            style_class: 'info-center-panel-progress-bar',
+        });
+        this._zaiPanelProgressBg.add_child(this._zaiPanelProgressBar);
+        this._box.add_child(this._zaiPanelProgressBg);
+
+        this._zaiLabel = new St.Label({
+            text: '...',
+            y_align: Clutter.ActorAlign.CENTER,
+            style_class: 'info-center-usage-label',
+        });
+        this._box.add_child(this._zaiLabel);
+
         this.add_child(this._box);
 
         // The Claude and Redmine feature modules own their own menu sections and
@@ -63,6 +92,8 @@ class InfoCenterIndicator extends PanelMenu.Button {
         const getSession = () => this._session;
         this._claude = new ClaudeUsage(
             this._settings, getSession, this._label, this._panelProgressBar);
+        this._zai = new ZaiUsage(
+            this._settings, getSession, this._zaiLabel, this._zaiPanelProgressBar);
         this._redmine = new Redmine(this._settings, getSession);
         this._hubstaff = new Hubstaff(this._settings, getSession);
 
@@ -72,6 +103,11 @@ class InfoCenterIndicator extends PanelMenu.Button {
             claude: {
                 intervalKey: 'refresh-interval',
                 module: this._claude,
+                id: null,
+            },
+            zai: {
+                intervalKey: 'zai-refresh-interval',
+                module: this._zai,
                 id: null,
             },
             redmine: {
@@ -95,6 +131,13 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._settingsChangedId = this._settings.connect('changed', (settings, key) => {
             if (key === 'refresh-interval') {
                 this._restartTimer('claude');
+            } else if (key === 'zai-refresh-interval') {
+                this._restartTimer('zai');
+            } else if (key === 'zai-api-key') {
+                // Key added/changed/removed: refetch and re-evaluate the GLM
+                // panel segment's visibility (it hides when no key is set).
+                this._zai.refresh();
+                this._updateDisplayMode();
             } else if (key === 'redmine-refresh-interval') {
                 this._restartTimer('redmine');
             } else if (key === 'hubstaff-refresh-interval') {
@@ -114,7 +157,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 // Same as Hubstaff: earnings derive from the already-fetched
                 // monthly time, so re-render locally instead of refetching.
                 this._redmine.rerender();
-            } else if (key === 'display-mode') {
+            } else if (key === 'display-mode' || key === 'zai-display-mode') {
                 this._updateDisplayMode();
             } else if (key === 'show-icon') {
                 this._updateIconVisibility();
@@ -141,6 +184,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
 
     _createMenu() {
         this._claude.buildMenu(this.menu);
+        this._zai.buildMenu(this.menu);
         this._redmine.buildMenu(this.menu);
         this._hubstaff.buildMenu(this.menu);
 
@@ -177,6 +221,16 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._panelProgressBg.visible = mode === 'bar' || mode === 'both';
         this._label.visible = mode !== 'bar';
         this._label.set_style(mode === 'both' ? 'margin-left: 6px;' : 'margin-left: 0;');
+
+        // The GLM segment has its own independent display mode, but the whole
+        // segment (tag + bar + number) is hidden unless a z.ai key is
+        // configured, so users who don't use GLM see no change to the panel.
+        const zaiMode = this._settings.get_string('zai-display-mode');
+        const zaiOn = this._zai.isConfigured();
+        this._zaiPrefix.visible = zaiOn;
+        this._zaiPanelProgressBg.visible = zaiOn && (zaiMode === 'bar' || zaiMode === 'both');
+        this._zaiLabel.visible = zaiOn && zaiMode !== 'bar';
+        this._zaiLabel.set_style(zaiMode === 'both' ? 'margin-left: 6px;' : 'margin-left: 0;');
     }
 
     _updateIconVisibility() {
@@ -207,6 +261,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
         // intended.
         this._session = this._createSession();
         this._claude.refresh();
+        this._zai.refresh();
         this._redmine.refresh();
         this._hubstaff.refresh();
     }
@@ -279,6 +334,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
             this._redmineRefreshId = null;
         }
         this._claude.destroy();
+        this._zai.destroy();
         this._redmine.destroy();
         this._hubstaff.destroy();
         if (this._session) {

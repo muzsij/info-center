@@ -11,6 +11,21 @@
       <summary>Redmine refresh interval</summary>
       <description>How often to refresh Redmine data in seconds</description>
     </key>
+    <key name="zai-refresh-interval" type="i">
+      <default>300</default>
+      <summary>GLM (z.ai) refresh interval</summary>
+      <description>How often to refresh z.ai GLM Coding Plan usage data in seconds</description>
+    </key>
+    <key name="zai-api-key" type="s">
+      <default>''</default>
+      <summary>z.ai API key</summary>
+      <description>API key used to query z.ai GLM Coding Plan usage (created at https://z.ai/manage-apikey/apikey-list). Leave empty to disable.</description>
+    </key>
+    <key name="zai-display-mode" type="s">
+      <default>'text'</default>
+      <summary>GLM panel display mode</summary>
+      <description>How to display GLM usage in the panel, independently of Claude: 'text' for percentage text, 'bar' for a progress bar, or 'both' for both</description>
+    </key>
     <key name="display-mode" type="s">
       <default>'text'</default>
       <summary>Display mode</summary>
