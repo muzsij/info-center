@@ -6,6 +6,7 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {
     buildUsageSection,
+    buildCompactUsageSection,
     applyBarWidth,
     updateProgressBar,
     updatePanelProgressBar,
@@ -155,6 +156,22 @@ export class ClaudeUsage {
                 this._reapplyBars();
             }
         });
+
+        // Compact: one "Claude" block with both windows. Otherwise two separate
+        // sections split by a separator. Either way the same widget fields are
+        // populated, so the render code below is layout-agnostic.
+        if (this._settings.get_boolean('claude-compact-view')) {
+            const compact = buildCompactUsageSection(menu, 'Claude', '5 hour', '7-day');
+            this._fiveHourPercent = compact.five.percent;
+            this._fiveHourProgressBar = compact.five.bar;
+            this._fiveHourProgressBg = compact.five.bg;
+            this._fiveHourResetLabel = compact.five.resetLabel;
+            this._sevenDayPercent = compact.weekly.percent;
+            this._sevenDayProgressBar = compact.weekly.bar;
+            this._sevenDayProgressBg = compact.weekly.bg;
+            this._sevenDayResetLabel = compact.weekly.resetLabel;
+            return;
+        }
 
         const five = buildUsageSection(menu, 'Claude 5-Hour Usage');
         this._fiveHourPercent = five.percent;

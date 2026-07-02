@@ -61,6 +61,79 @@ export function buildUsageSection(menu, title) {
     return { percent, bar, bg, resetLabel, item };
 }
 
+// Compact variant of the two-window usage block: a single dropdown item with
+// one title ("Claude"/"GLM"), and for each window a bar row (progress bar +
+// right-aligned percent) followed by a reset row (reset countdown + a
+// right-aligned tag naming the window, e.g. "5 hour" / "7-day"). Returns the
+// same per-window widget shape as buildUsageSection so the caller's update code
+// (percent/bar/bg/resetLabel) is identical; `item` is the single menu item.
+export function buildCompactUsageSection(menu, title, fiveTag, weekTag) {
+    const box = new St.BoxLayout({
+        style_class: 'info-center-usage-section',
+        vertical: true,
+    });
+    box.add_child(new St.Label({
+        text: title,
+        style_class: 'info-center-section-title',
+    }));
+
+    const five = buildCompactWindow(box, fiveTag);
+    const weekly = buildCompactWindow(box, weekTag);
+
+    const item = new PopupMenu.PopupBaseMenuItem({
+        reactive: false,
+        can_focus: false,
+    });
+    item.add_child(box);
+    menu.addMenuItem(item);
+
+    return { five, weekly, item };
+}
+
+// One window inside a compact block: a bar row and a reset row appended to
+// `box`. `tag` labels the window at the end of the reset row.
+function buildCompactWindow(box, tag) {
+    const barRow = new St.BoxLayout({
+        vertical: false,
+        style_class: 'info-center-compact-bar-row',
+    });
+    const bg = new St.Widget({
+        style_class: 'info-center-progress-bg',
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+    });
+    const bar = new St.Widget({
+        style_class: 'info-center-progress-bar usage-low',
+    });
+    bg.add_child(bar);
+    // Track the bg's actual allocated width — see buildUsageSection.
+    bg.connect('notify::width', () => applyBarWidth(bar, bg));
+    barRow.add_child(bg);
+    const percent = new St.Label({
+        text: '...',
+        style_class: 'info-center-percent-label',
+        y_align: Clutter.ActorAlign.CENTER,
+    });
+    barRow.add_child(percent);
+    box.add_child(barRow);
+
+    const resetRow = new St.BoxLayout({ vertical: false });
+    const resetLabel = new St.Label({
+        text: 'Resets: ...',
+        style_class: 'info-center-reset-label',
+        x_expand: true,
+    });
+    resetRow.add_child(resetLabel);
+    resetRow.add_child(new St.Label({
+        text: tag,
+        style_class: 'info-center-reset-label info-center-compact-tag',
+        x_align: Clutter.ActorAlign.END,
+    }));
+    box.add_child(resetRow);
+
+    return { percent, bar, bg, resetLabel };
+}
+
 // Size the fill against the bg's current allocated width from the 0..1 fraction
 // stored on the bar. Reapplied from notify::width too, so it stays correct when
 // the menu (and thus the bg) is resized.

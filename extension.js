@@ -355,7 +355,11 @@ export default class InfoCenterExtension extends Extension {
         this._placeIndicator();
 
         this._placementChangedId = this._settings.connect('changed', (settings, key) => {
-            if (key === 'panel-box' || key === 'panel-position') {
+            // The compact-view toggles change the dropdown's section layout, which
+            // is built once in each module's buildMenu — recreate the whole
+            // indicator (like a placement change) so the menu is rebuilt fresh.
+            if (key === 'panel-box' || key === 'panel-position' ||
+                key === 'claude-compact-view' || key === 'zai-compact-view') {
                 this._schedulePlaceIndicator();
             }
         });

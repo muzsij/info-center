@@ -117,6 +117,17 @@
     background-color: #ef4444;
 }
 
+/* Compact usage block: the bar row puts the progress bar and its percentage
+   side by side (the bg x_expands, pushing the percent to the row's end). */
+.info-center-compact-bar-row {
+    spacing: 8px;
+}
+
+/* Right-aligned window tag ("5 hour" / "7-day") ending a compact reset row. */
+.info-center-compact-tag {
+    font-weight: bold;
+}
+
 /* Redmine time entry rows */
 .info-center-redmine-rows {
     spacing: 2px;

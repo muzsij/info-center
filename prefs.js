@@ -270,6 +270,25 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
             Gio.SettingsBindFlags.DEFAULT
         );
         displayGroup.add(showIconRow);
+
+        const dropdownGroup = new Adw.PreferencesGroup({
+            title: 'Dropdown',
+            description: 'Configure how Claude usage is shown in the dropdown menu',
+        });
+        page.add(dropdownGroup);
+
+        const compactRow = new Adw.SwitchRow({
+            title: 'Compact View',
+            subtitle: 'Show the 5-hour and 7-day usage as one compact block ' +
+                'instead of two separate sections',
+        });
+        settings.bind(
+            'claude-compact-view',
+            compactRow,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        dropdownGroup.add(compactRow);
     }
 
     _buildZaiPage(window, settings) {
@@ -338,6 +357,25 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         });
 
         displayGroup.add(displayModeRow);
+
+        const dropdownGroup = new Adw.PreferencesGroup({
+            title: 'Dropdown',
+            description: 'Configure how GLM usage is shown in the dropdown menu',
+        });
+        page.add(dropdownGroup);
+
+        const compactRow = new Adw.SwitchRow({
+            title: 'Compact View',
+            subtitle: 'Show the 5-hour and weekly usage as one compact block ' +
+                'instead of two separate sections',
+        });
+        settings.bind(
+            'zai-compact-view',
+            compactRow,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        dropdownGroup.add(compactRow);
     }
 
     _buildRedminePage(window, settings) {

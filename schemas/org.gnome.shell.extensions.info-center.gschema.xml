@@ -31,6 +31,16 @@
       <summary>Display mode</summary>
       <description>How to display usage in the panel: 'text' for percentage text, 'bar' for a progress bar, or 'both' for both</description>
     </key>
+    <key name="claude-compact-view" type="b">
+      <default>false</default>
+      <summary>Claude compact dropdown view</summary>
+      <description>When enabled, the Claude 5-hour and 7-day usage are shown as a single compact block in the dropdown (one "Claude" title, each window a progress bar with its percentage and a reset countdown tagged 5 hour / 7-day) instead of two separate sections.</description>
+    </key>
+    <key name="zai-compact-view" type="b">
+      <default>false</default>
+      <summary>GLM compact dropdown view</summary>
+      <description>When enabled, the GLM 5-hour and weekly usage are shown as a single compact block in the dropdown (one "GLM" title, each window a progress bar with its percentage and a reset countdown tagged 5 hour / 7-day) instead of two separate sections.</description>
+    </key>
     <key name="icon-style" type="s">
       <default>'color'</default>
       <summary>Icon style</summary>

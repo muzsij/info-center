@@ -6,6 +6,7 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {
     buildUsageSection,
+    buildCompactUsageSection,
     applyBarWidth,
     updateProgressBar,
     updatePanelProgressBar,
@@ -73,37 +74,49 @@ export class ZaiUsage {
         this._separator.add_style_class_name('info-center-separator');
         menu.addMenuItem(this._separator);
 
-        const five = buildUsageSection(menu, 'GLM 5-Hour Usage');
-        this._fiveHourPercent = five.percent;
-        this._fiveHourProgressBar = five.bar;
-        this._fiveHourProgressBg = five.bg;
-        this._fiveHourResetLabel = five.resetLabel;
-        this._fiveHourItem = five.item;
+        // Compact: one "GLM" block with both windows. Otherwise two separate
+        // sections split by an inner separator. Either way the same widget
+        // fields are populated, and `_sectionItems` lists the menu items to
+        // hide/show together (the leading separator plus the section item(s)).
+        if (this._settings.get_boolean('zai-compact-view')) {
+            const compact = buildCompactUsageSection(menu, 'GLM', '5 hour', '7-day');
+            this._fiveHourPercent = compact.five.percent;
+            this._fiveHourProgressBar = compact.five.bar;
+            this._fiveHourProgressBg = compact.five.bg;
+            this._fiveHourResetLabel = compact.five.resetLabel;
+            this._weeklyPercent = compact.weekly.percent;
+            this._weeklyProgressBar = compact.weekly.bar;
+            this._weeklyProgressBg = compact.weekly.bg;
+            this._weeklyResetLabel = compact.weekly.resetLabel;
+            this._sectionItems = [this._separator, compact.item];
+        } else {
+            const five = buildUsageSection(menu, 'GLM 5-Hour Usage');
+            this._fiveHourPercent = five.percent;
+            this._fiveHourProgressBar = five.bar;
+            this._fiveHourProgressBg = five.bg;
+            this._fiveHourResetLabel = five.resetLabel;
 
-        this._innerSeparator = new PopupMenu.PopupSeparatorMenuItem();
-        this._innerSeparator.add_style_class_name('info-center-separator');
-        menu.addMenuItem(this._innerSeparator);
+            const innerSeparator = new PopupMenu.PopupSeparatorMenuItem();
+            innerSeparator.add_style_class_name('info-center-separator');
+            menu.addMenuItem(innerSeparator);
 
-        const weekly = buildUsageSection(menu, 'GLM Weekly Usage');
-        this._weeklyPercent = weekly.percent;
-        this._weeklyProgressBar = weekly.bar;
-        this._weeklyProgressBg = weekly.bg;
-        this._weeklyResetLabel = weekly.resetLabel;
-        this._weeklyItem = weekly.item;
+            const weekly = buildUsageSection(menu, 'GLM Weekly Usage');
+            this._weeklyPercent = weekly.percent;
+            this._weeklyProgressBar = weekly.bar;
+            this._weeklyProgressBg = weekly.bg;
+            this._weeklyResetLabel = weekly.resetLabel;
+
+            this._sectionItems = [this._separator, five.item, innerSeparator, weekly.item];
+        }
 
         // Hidden until a key is configured (a fetch un-hides it).
         this._setSectionsVisible(this.isConfigured());
     }
 
-    // Toggle the whole GLM block (both sections + their separators) so users
+    // Toggle the whole GLM block (section item(s) + separators) so users
     // without a z.ai key don't see empty "GLM … 0%" rows.
     _setSectionsVisible(visible) {
-        for (const item of [
-            this._separator,
-            this._fiveHourItem,
-            this._innerSeparator,
-            this._weeklyItem,
-        ]) {
+        for (const item of this._sectionItems) {
             if (item) {
                 item.visible = visible;
             }
