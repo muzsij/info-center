@@ -19,7 +19,10 @@ import {Hubstaff} from './lib/services/hubstaff.js';
 const InfoCenterIndicator = GObject.registerClass(
 class InfoCenterIndicator extends PanelMenu.Button {
     _init(extensionPath, settings, openPreferences) {
-        super._init(0.0, 'Info Center Indicator');
+        // menuAlignment 0.5 centers the dropdown under the icon (0.0 would pin
+        // its left edge to the icon centre, so it hung off to the right); the
+        // boxpointer still clamps the menu to the monitor when it would overflow.
+        super._init(0.5, 'Info Center Indicator');
 
         this._extensionPath = extensionPath;
         this._settings = settings;
