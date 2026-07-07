@@ -14,6 +14,7 @@ import {
     titleWithPlan,
     formatPlanName,
 } from './usageSection.js';
+import {isUsageReset, notifyUsageReset} from './notifications.js';
 
 // Z.ai GLM Coding Plan usage. The quota endpoint returns a `data.limits` array;
 // each token-limit entry is keyed by (unit, number): a 5-hour window is
@@ -35,6 +36,10 @@ export class ZaiUsage {
         this._getSession = getSession;
         this._label = panelLabel;
         this._panelProgressBar = panelProgressBar;
+        // Last successfully-read 5-hour percentage, used to detect a reset (a
+        // downward crossing of the notify threshold). Null until the first good
+        // fetch so start-up doesn't fire a spurious reset notification.
+        this._lastFivePct = null;
         this._cancellable = null;
         this._menu = null;
         this._openStateId = 0;
@@ -235,6 +240,8 @@ export class ZaiUsage {
         const fivePct = typeof five?.percentage === 'number' ? five.percentage : 0;
         const weeklyPct = typeof weekly?.percentage === 'number' ? weekly.percentage : 0;
 
+        this._maybeNotifyReset(fivePct);
+
         this._label.set_text(`${Math.round(fivePct)}%`);
         updatePanelProgressBar(this._panelProgressBar, fivePct);
 
@@ -271,6 +278,19 @@ export class ZaiUsage {
         updatePanelProgressBar(this._panelProgressBar, 0);
         updateProgressBar(this._fiveHourProgressBar, this._fiveHourProgressBg, 0);
         updateProgressBar(this._weeklyProgressBar, this._weeklyProgressBg, 0);
+    }
+
+    // Fire a reset notification when the 5-hour usage drops below the configured
+    // threshold after having reached it. Always updates the baseline (even when
+    // notifications are off) so toggling the setting on mid-session has a valid
+    // previous reading to compare against.
+    _maybeNotifyReset(fivePct) {
+        if (this._settings.get_boolean('zai-notify-reset') &&
+            isUsageReset(this._lastFivePct, fivePct,
+                this._settings.get_int('zai-notify-threshold'))) {
+            notifyUsageReset('GLM');
+        }
+        this._lastFivePct = fivePct;
     }
 
     // Reapply both bar fills from their stored fractions once the menu has

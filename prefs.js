@@ -16,6 +16,58 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         return this._session;
     }
 
+    // The Claude and GLM pages share an identical Notifications group, differing
+    // only in the settings-key prefix and the service name in the wording.
+    _buildNotificationsGroup(page, settings, keyPrefix, serviceName) {
+        const group = new Adw.PreferencesGroup({
+            title: 'Notifications',
+            description: `Get notified when your ${serviceName} 5-hour usage ` +
+                'window resets',
+        });
+        page.add(group);
+
+        const enableRow = new Adw.SwitchRow({
+            title: 'Notify on 5-Hour Reset',
+            subtitle: `Send a notification when ${serviceName} 5-hour usage ` +
+                'resets after reaching the threshold below',
+        });
+        settings.bind(
+            `${keyPrefix}-notify-reset`,
+            enableRow,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        group.add(enableRow);
+
+        const thresholdRow = new Adw.SpinRow({
+            title: 'Minimum Level',
+            subtitle: 'Only announce resets of windows that reached at least ' +
+                'this usage percentage',
+            adjustment: new Gtk.Adjustment({
+                lower: 0,
+                upper: 100,
+                step_increment: 1,
+                page_increment: 10,
+                value: settings.get_int(`${keyPrefix}-notify-threshold`),
+            }),
+        });
+        settings.bind(
+            `${keyPrefix}-notify-threshold`,
+            thresholdRow,
+            'value',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        // The threshold only matters when notifications are on, so gate its
+        // sensitivity on the toggle.
+        settings.bind(
+            `${keyPrefix}-notify-reset`,
+            thresholdRow,
+            'sensitive',
+            Gio.SettingsBindFlags.GET
+        );
+        group.add(thresholdRow);
+    }
+
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
 
@@ -289,6 +341,8 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
             Gio.SettingsBindFlags.DEFAULT
         );
         dropdownGroup.add(compactRow);
+
+        this._buildNotificationsGroup(page, settings, 'claude', 'Claude');
     }
 
     _buildZaiPage(window, settings) {
@@ -376,6 +430,8 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
             Gio.SettingsBindFlags.DEFAULT
         );
         dropdownGroup.add(compactRow);
+
+        this._buildNotificationsGroup(page, settings, 'zai', 'GLM');
     }
 
     _buildRedminePage(window, settings) {

@@ -14,6 +14,7 @@ import {
     titleWithPlan,
     formatPlanName,
 } from './usageSection.js';
+import {isUsageReset, notifyUsageReset} from './notifications.js';
 
 const API_URL = 'https://api.anthropic.com/api/oauth/usage';
 
@@ -53,6 +54,10 @@ export class ClaudeUsage {
         this._retryTimerId = null;
         this._authRetries = 0;
         this._hasData = false;
+        // Last successfully-read 5-hour percentage, used to detect a reset (a
+        // downward crossing of the notify threshold). Null until the first good
+        // fetch so start-up doesn't fire a spurious reset notification.
+        this._lastFivePct = null;
         this._cancellable = null;
         this._menu = null;
         this._openStateId = 0;
@@ -353,6 +358,8 @@ export class ClaudeUsage {
         const fiveHour = data.five_hour?.utilization ?? 0;
         const sevenDay = data.seven_day?.utilization ?? 0;
 
+        this._maybeNotifyReset(fiveHour);
+
         this._label.set_text(`${Math.round(fiveHour)}%`);
 
         updatePanelProgressBar(this._panelProgressBar, fiveHour);
@@ -380,6 +387,19 @@ export class ClaudeUsage {
         } else {
             this._sevenDayResetLabel.set_text('—');
         }
+    }
+
+    // Fire a reset notification when the 5-hour usage drops below the configured
+    // threshold after having reached it. Always updates the baseline (even when
+    // notifications are off) so toggling the setting on mid-session has a valid
+    // previous reading to compare against.
+    _maybeNotifyReset(fiveHour) {
+        if (this._settings.get_boolean('claude-notify-reset') &&
+            isUsageReset(this._lastFivePct, fiveHour,
+                this._settings.get_int('claude-notify-threshold'))) {
+            notifyUsageReset('Claude');
+        }
+        this._lastFivePct = fiveHour;
     }
 
     // Reapply both bar fills from their stored fractions once the menu has

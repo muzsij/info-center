@@ -36,10 +36,30 @@
       <summary>Claude compact dropdown view</summary>
       <description>When enabled, the Claude 5-hour and 7-day usage are shown as a single compact block in the dropdown (one "Claude" title, each window a progress bar with its percentage and a reset countdown tagged 5 hour / 7-day) instead of two separate sections.</description>
     </key>
+    <key name="claude-notify-reset" type="b">
+      <default>false</default>
+      <summary>Notify on Claude 5-hour reset</summary>
+      <description>When enabled, send a desktop notification when the Claude 5-hour usage window resets — detected as the usage dropping below the notify threshold after having reached it.</description>
+    </key>
+    <key name="claude-notify-threshold" type="i">
+      <default>80</default>
+      <summary>Claude reset notification threshold</summary>
+      <description>Minimum 5-hour usage percentage (0–100) the window must have reached before a reset triggers a notification. Only resets of windows that climbed to at least this level are announced.</description>
+    </key>
     <key name="zai-compact-view" type="b">
       <default>false</default>
       <summary>GLM compact dropdown view</summary>
       <description>When enabled, the GLM 5-hour and weekly usage are shown as a single compact block in the dropdown (one "GLM" title, each window a progress bar with its percentage and a reset countdown tagged 5 hour / 7-day) instead of two separate sections.</description>
+    </key>
+    <key name="zai-notify-reset" type="b">
+      <default>false</default>
+      <summary>Notify on GLM 5-hour reset</summary>
+      <description>When enabled, send a desktop notification when the GLM 5-hour usage window resets — detected as the usage dropping below the notify threshold after having reached it.</description>
+    </key>
+    <key name="zai-notify-threshold" type="i">
+      <default>80</default>
+      <summary>GLM reset notification threshold</summary>
+      <description>Minimum 5-hour usage percentage (0–100) the window must have reached before a reset triggers a notification. Only resets of windows that climbed to at least this level are announced.</description>
     </key>
     <key name="icon-style" type="s">
       <default>'color'</default>
