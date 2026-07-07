@@ -25,6 +25,17 @@ Or just avoid `cd` entirely: `glib-compile-schemas schemas`. Same rule for any o
 
 ## Architecture
 
+**Directory layout.** The two entry points (`extension.js`, `prefs.js`), `metadata.json`, and `stylesheet.css` must stay in the repo root — GNOME Shell loads each from a fixed location and will not find them elsewhere. `schemas/` and `icons/` also stay at the root. Everything the Shell-side entry point delegates to lives under `lib/`:
+
+```
+extension.js · prefs.js · metadata.json · stylesheet.css   ← root (Shell loads these here)
+schemas/ · icons/
+lib/services/   claudeUsage.js · zai.js · redmine.js · hubstaff.js   ← one integration each
+lib/shared/     usageSection.js · sections.js · tooltip.js · notifications.js   ← cross-service builders/helpers
+```
+
+Module names below are written bare (e.g. `claudeUsage.js`); their real paths are `lib/services/<name>` for the four feature modules and `lib/shared/<name>` for the four shared helpers. Imports are relative ESM: `extension.js` reaches a feature module via `./lib/services/…`; a feature module reaches a shared helper via `../shared/…`; `sections.js` reaches `usageSection.js` as a same-folder `./`.
+
 Two entry points, loaded by GNOME Shell into different processes. The Shell-side entry point delegates its dropdown sections and fetch logic to four feature modules:
 
 - **`extension.js`** — runs in the Shell (compositor) process. `InfoCenterExtension.enable()` creates the panel indicator. `InfoCenterIndicator` (a `PanelMenu.Button`) owns the panel widget (a Claude logo + Claude label + panel progress bar; and a GLM logo + label + panel progress bar shown when z.ai is configured — both logos are `St.Icon`s from `icons/info-center-claude.svg` / `info-center-glm.svg`), the dropdown menu, the refresh timers, the `Soup.Session`, and the settings signal. It builds nothing inside the dropdown itself beyond the footer separator + **Refresh Now** + **Settings** items; it hands the menu to the four modules to populate.

@@ -11,10 +11,10 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-import {ClaudeUsage} from './claudeUsage.js';
-import {ZaiUsage} from './zai.js';
-import {Redmine} from './redmine.js';
-import {Hubstaff} from './hubstaff.js';
+import {ClaudeUsage} from './lib/services/claudeUsage.js';
+import {ZaiUsage} from './lib/services/zai.js';
+import {Redmine} from './lib/services/redmine.js';
+import {Hubstaff} from './lib/services/hubstaff.js';
 
 const InfoCenterIndicator = GObject.registerClass(
 class InfoCenterIndicator extends PanelMenu.Button {
