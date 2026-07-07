@@ -9,6 +9,7 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {Tooltip, formatMoney} from './tooltip.js';
 import {buildTotalsSection, addTotalsRow, messageLabel, formatHM} from './sections.js';
+import {sectionTitleIcon} from './usageSection.js';
 
 // Owns the Redmine menu sections: the "Today" / "Tomorrow" issue lists and the
 // per-project "this month" time totals. All sections are hidden until Redmine
@@ -16,9 +17,11 @@ import {buildTotalsSection, addTotalsRow, messageLabel, formatHM} from './sectio
 // selected project. The session is read through a getter so proxy recreation
 // in the indicator is always reflected on the next fetch.
 export class Redmine {
-    constructor(settings, getSession) {
+    constructor(settings, getSession, extensionPath) {
         this._settings = settings;
         this._getSession = getSession;
+        this._iconPath = GLib.build_filenamev([
+            extensionPath, 'icons', 'info-center-redmine.svg']);
         this._cancellable = null;
         // Floating earnings tooltip (shared across the month-totals rows) and
         // the text shown when hovering the month-total title row.
@@ -48,7 +51,8 @@ export class Redmine {
         this._todaySection = this._createSection(menu, 'Redmine Issues — Today');
         this._tomorrowSection = this._createSection(menu, 'Redmine Issues — Tomorrow');
 
-        const totals = buildTotalsSection(menu, 'Redmine time — this month');
+        const totals = buildTotalsSection(
+            menu, 'Redmine time — this month', this._iconPath);
         this._separator = totals.separator;
         this._item = totals.item;
         this._totalLabel = totals.totalLabel;
@@ -72,8 +76,17 @@ export class Redmine {
         const titleLabel = new St.Label({
             text: title,
             style_class: 'info-center-section-title',
+            y_align: Clutter.ActorAlign.CENTER,
         });
-        box.add_child(titleLabel);
+        const icon = sectionTitleIcon(this._iconPath);
+        if (icon) {
+            const titleRow = new St.BoxLayout({ vertical: false });
+            titleRow.add_child(icon);
+            titleRow.add_child(titleLabel);
+            box.add_child(titleRow);
+        } else {
+            box.add_child(titleLabel);
+        }
 
         const rowsBox = new St.BoxLayout({
             vertical: true,

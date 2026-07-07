@@ -3,6 +3,8 @@ import Clutter from 'gi://Clutter';
 
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
+import {sectionTitleIcon} from './usageSection.js';
+
 // Shared builders for the Redmine / Hubstaff "time — this month" dropdown
 // sections, which have the same shape: a separator, a title row with a
 // right-aligned running total, and a rows box with one name/value row per
@@ -11,7 +13,7 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 // Build the (initially hidden) totals section. The caller binds its earnings
 // tooltip to `titleRow` and toggles `separator`/`item` visibility as data
 // comes and goes.
-export function buildTotalsSection(menu, title) {
+export function buildTotalsSection(menu, title, iconPath) {
     const separator = new PopupMenu.PopupSeparatorMenuItem();
     separator.add_style_class_name('info-center-separator');
     menu.addMenuItem(separator);
@@ -21,6 +23,10 @@ export function buildTotalsSection(menu, title) {
         vertical: true,
     });
     const titleRow = new St.BoxLayout({ vertical: false });
+    const icon = sectionTitleIcon(iconPath);
+    if (icon) {
+        titleRow.add_child(icon);
+    }
     titleRow.add_child(new St.Label({
         text: title,
         style_class: 'info-center-section-title',

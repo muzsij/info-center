@@ -31,11 +31,13 @@ const TOKENS_LIMIT = 'TOKENS_LIMIT';
 // through a getter so proxy recreation in the indicator is picked up on the
 // next fetch. Auth is a static, long-lived API key — no OAuth / token rotation.
 export class ZaiUsage {
-    constructor(settings, getSession, panelLabel, panelProgressBar) {
+    constructor(settings, getSession, panelLabel, panelProgressBar, extensionPath) {
         this._settings = settings;
         this._getSession = getSession;
         this._label = panelLabel;
         this._panelProgressBar = panelProgressBar;
+        this._iconPath = GLib.build_filenamev([
+            extensionPath, 'icons', 'info-center-glm.svg']);
         // Last successfully-read 5-hour percentage, used to detect a reset (a
         // downward crossing of the notify threshold). Null until the first good
         // fetch so start-up doesn't fire a spurious reset notification.
@@ -91,7 +93,8 @@ export class ZaiUsage {
         this._compact = this._settings.get_boolean('zai-compact-view');
 
         if (this._compact) {
-            const compact = buildCompactUsageSection(menu, 'GLM', '5 hour', '7-day');
+            const compact = buildCompactUsageSection(
+                menu, 'GLM', '5 hour', '7-day', this._iconPath);
             this._fiveHourPercent = compact.five.percent;
             this._fiveHourProgressBar = compact.five.bar;
             this._fiveHourProgressBg = compact.five.bg;
@@ -103,7 +106,7 @@ export class ZaiUsage {
             this._sectionItems = [this._separator, compact.item];
             this._titles = [{ label: compact.titleLabel, base: 'GLM' }];
         } else {
-            const five = buildUsageSection(menu, 'GLM 5-Hour Usage');
+            const five = buildUsageSection(menu, 'GLM 5-Hour Usage', this._iconPath);
             this._fiveHourPercent = five.percent;
             this._fiveHourProgressBar = five.bar;
             this._fiveHourProgressBg = five.bg;
@@ -113,7 +116,7 @@ export class ZaiUsage {
             innerSeparator.add_style_class_name('info-center-separator');
             menu.addMenuItem(innerSeparator);
 
-            const weekly = buildUsageSection(menu, 'GLM Weekly Usage');
+            const weekly = buildUsageSection(menu, 'GLM Weekly Usage', this._iconPath);
             this._weeklyPercent = weekly.percent;
             this._weeklyProgressBar = weekly.bar;
             this._weeklyProgressBg = weekly.bg;

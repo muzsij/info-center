@@ -71,11 +71,55 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
 
+        this._registerIcons(window);
+        this._applyStyles(window);
+
         this._buildSettingsPage(window, settings);
         this._buildClaudePage(window, settings);
         this._buildZaiPage(window, settings);
         this._buildRedminePage(window, settings);
         this._buildHubstaffPage(window, settings);
+    }
+
+    // Register the bundled icons/ directory with the display's icon theme so the
+    // per-product page tabs can show official product logos placed there
+    // (info-center-claude/glm/redmine/hubstaff.svg). This wires up the lookup
+    // path and remembers the dir for _pageIcon.
+    _registerIcons(window) {
+        this._iconsDir = Gio.File.new_for_path(
+            GLib.build_filenamev([this.path, 'icons']));
+        if (this._iconsDir.query_exists(null)) {
+            Gtk.IconTheme.get_for_display(window.get_display())
+                .add_search_path(this._iconsDir.get_path());
+        }
+    }
+
+    // Enlarge the product logos in the page-switcher (the top switcher and the
+    // narrow-mode bottom bar) beyond the ~16px Adwaita default so the brand
+    // marks read clearly. Scoped to the viewswitcher's images so nothing else
+    // in the window is affected.
+    _applyStyles(window) {
+        const provider = new Gtk.CssProvider();
+        provider.load_from_string(
+            'viewswitcher button image { -gtk-icon-size: 24px; }');
+        Gtk.StyleContext.add_provider_for_display(
+            window.get_display(),
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
+    }
+
+    // Use the bundled product icon `name` if a matching file (SVG or PNG) exists
+    // in icons/, otherwise fall back to a generic symbolic icon — so a tab never
+    // shows a broken icon before the user drops in the official logo, and picks
+    // it up automatically once the file is present.
+    _pageIcon(name, fallback) {
+        for (const ext of ['svg', 'png']) {
+            if (this._iconsDir.get_child(`${name}.${ext}`).query_exists(null)) {
+                return name;
+            }
+        }
+        return fallback;
     }
 
     // Every feature page starts with the same General group holding a
@@ -254,7 +298,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
     _buildClaudePage(window, settings) {
         const page = new Adw.PreferencesPage({
             title: 'Claude',
-            icon_name: 'preferences-system-symbolic',
+            icon_name: this._pageIcon('info-center-claude', 'preferences-system-symbolic'),
         });
         window.add(page);
 
@@ -348,7 +392,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
     _buildZaiPage(window, settings) {
         const page = new Adw.PreferencesPage({
             title: 'GLM',
-            icon_name: 'utilities-system-monitor-symbolic',
+            icon_name: this._pageIcon('info-center-glm', 'utilities-system-monitor-symbolic'),
         });
         window.add(page);
 
@@ -437,7 +481,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
     _buildRedminePage(window, settings) {
         const page = new Adw.PreferencesPage({
             title: 'Redmine',
-            icon_name: 'network-server-symbolic',
+            icon_name: this._pageIcon('info-center-redmine', 'network-server-symbolic'),
         });
         window.add(page);
 
@@ -564,7 +608,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
     _buildHubstaffPage(window, settings) {
         const page = new Adw.PreferencesPage({
             title: 'Hubstaff',
-            icon_name: 'preferences-desktop-time-symbolic',
+            icon_name: this._pageIcon('info-center-hubstaff', 'preferences-desktop-time-symbolic'),
         });
         window.add(page);
 

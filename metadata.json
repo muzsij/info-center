@@ -5,5 +5,5 @@
   "shell-version": ["46", "47", "48", "49", "50"],
   "url": "https://github.com/muzsij/info-center",
   "settings-schema": "org.gnome.shell.extensions.info-center",
-  "version": 11
+  "version": 14
 }

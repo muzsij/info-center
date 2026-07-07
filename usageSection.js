@@ -1,4 +1,5 @@
 import St from 'gi://St';
+import Gio from 'gi://Gio';
 import Clutter from 'gi://Clutter';
 
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
@@ -9,18 +10,39 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 // expose the same shape (a 5-hour and a longer rolling window), so the section
 // widget and the bar math live here once.
 
+// A small product logo placed before a section title. Sized (14px, centered) so
+// it aligns with the ~13px title text without making the row taller. Returns
+// null for an empty path so callers can prepend it unconditionally.
+export function sectionTitleIcon(iconPath) {
+    if (!iconPath) {
+        return null;
+    }
+    return new St.Icon({
+        gicon: Gio.icon_new_for_string(iconPath),
+        style_class: 'info-center-section-icon',
+        icon_size: 14,
+        y_align: Clutter.ActorAlign.CENTER,
+    });
+}
+
 // One usage section: title + right-aligned percent, a progress bar, and a
 // reset-time label. Returns the widgets the caller updates plus the menu item
-// itself, so a caller can toggle the whole section's visibility.
-export function buildUsageSection(menu, title) {
+// itself, so a caller can toggle the whole section's visibility. An optional
+// iconPath prepends the product logo before the title.
+export function buildUsageSection(menu, title, iconPath) {
     const box = new St.BoxLayout({
         style_class: 'info-center-usage-section',
         vertical: true,
     });
     const header = new St.BoxLayout({ vertical: false });
+    const icon = sectionTitleIcon(iconPath);
+    if (icon) {
+        header.add_child(icon);
+    }
     const titleLabel = new St.Label({
         text: title,
         style_class: 'info-center-section-title',
+        y_align: Clutter.ActorAlign.CENTER,
     });
     header.add_child(titleLabel);
     const percent = new St.Label({
@@ -67,8 +89,9 @@ export function buildUsageSection(menu, title) {
 // right-aligned percent) followed by a reset row (reset countdown + a
 // right-aligned tag naming the window, e.g. "5 hour" / "7-day"). Returns the
 // same per-window widget shape as buildUsageSection so the caller's update code
-// (percent/bar/bg/resetLabel) is identical; `item` is the single menu item.
-export function buildCompactUsageSection(menu, title, fiveTag, weekTag) {
+// (percent/bar/bg/resetLabel) is identical; `item` is the single menu item. An
+// optional iconPath prepends the product logo before the title.
+export function buildCompactUsageSection(menu, title, fiveTag, weekTag, iconPath) {
     const box = new St.BoxLayout({
         style_class: 'info-center-usage-section',
         vertical: true,
@@ -76,8 +99,17 @@ export function buildCompactUsageSection(menu, title, fiveTag, weekTag) {
     const titleLabel = new St.Label({
         text: title,
         style_class: 'info-center-section-title',
+        y_align: Clutter.ActorAlign.CENTER,
     });
-    box.add_child(titleLabel);
+    const icon = sectionTitleIcon(iconPath);
+    if (icon) {
+        const titleRow = new St.BoxLayout({ vertical: false });
+        titleRow.add_child(icon);
+        titleRow.add_child(titleLabel);
+        box.add_child(titleRow);
+    } else {
+        box.add_child(titleLabel);
+    }
 
     const five = buildCompactWindow(box, fiveTag);
     const weekly = buildCompactWindow(box, weekTag);

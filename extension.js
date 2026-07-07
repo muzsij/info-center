@@ -30,7 +30,8 @@ class InfoCenterIndicator extends PanelMenu.Button {
             style_class: 'panel-status-menu-box',
         });
 
-        const iconPath = GLib.build_filenamev([this._extensionPath, 'info-center-icon-22.png']);
+        const iconPath = GLib.build_filenamev([
+            this._extensionPath, 'icons', 'info-center-claude.svg']);
         const gicon = Gio.icon_new_for_string(iconPath);
         this._icon = new St.Icon({
             gicon: gicon,
@@ -57,13 +58,16 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._box.add_child(this._label);
 
         // GLM (z.ai) panel segment, shown next to the Claude number when a z.ai
-        // API key is configured. Its own dim "GLM" tag disambiguates the two
-        // percentages; its bg/label/tag visibility is governed together with
+        // API key is configured. Its own GLM logo disambiguates the two
+        // percentages; its bg/label/logo visibility is governed together with
         // the Claude widgets in _updateDisplayMode (gated on being configured).
-        this._zaiPrefix = new St.Label({
-            text: 'GLM',
-            y_align: Clutter.ActorAlign.CENTER,
+        const zaiIconPath = GLib.build_filenamev([
+            this._extensionPath, 'icons', 'info-center-glm.svg']);
+        this._zaiPrefix = new St.Icon({
+            gicon: Gio.icon_new_for_string(zaiIconPath),
             style_class: 'info-center-zai-prefix',
+            icon_size: 16,
+            y_align: Clutter.ActorAlign.CENTER,
         });
         this._box.add_child(this._zaiPrefix);
 
@@ -91,11 +95,13 @@ class InfoCenterIndicator extends PanelMenu.Button {
         // proxy recreation here is picked up on their next request.
         const getSession = () => this._session;
         this._claude = new ClaudeUsage(
-            this._settings, getSession, this._label, this._panelProgressBar);
+            this._settings, getSession, this._label, this._panelProgressBar,
+            this._extensionPath);
         this._zai = new ZaiUsage(
-            this._settings, getSession, this._zaiLabel, this._zaiPanelProgressBar);
-        this._redmine = new Redmine(this._settings, getSession);
-        this._hubstaff = new Hubstaff(this._settings, getSession);
+            this._settings, getSession, this._zaiLabel, this._zaiPanelProgressBar,
+            this._extensionPath);
+        this._redmine = new Redmine(this._settings, getSession, this._extensionPath);
+        this._hubstaff = new Hubstaff(this._settings, getSession, this._extensionPath);
 
         // One refresh timer per feature module, each driven by its own
         // interval key; started/stopped/restarted by name via _startTimer & co.
@@ -283,20 +289,25 @@ class InfoCenterIndicator extends PanelMenu.Button {
         );
     }
 
+    // Apply the color/monochrome choice to both panel logos (Claude and GLM), so
+    // toggling monochrome desaturates the whole panel consistently.
     _updateIconStyle() {
         const style = this._settings.get_string('icon-style');
         const desatName = 'monochrome-desaturate';
         const brightName = 'monochrome-brightness';
-        const hasEffect = this._icon.get_effect(desatName) !== null;
 
-        if (style === 'monochrome' && !hasEffect) {
-            this._icon.add_effect(new Clutter.DesaturateEffect({factor: 1.0, name: desatName}));
-            const brightnessEffect = new Clutter.BrightnessContrastEffect({name: brightName});
-            brightnessEffect.set_brightness_full(1, 1, 1);
-            this._icon.add_effect(brightnessEffect);
-        } else if (style !== 'monochrome' && hasEffect) {
-            this._icon.remove_effect_by_name(desatName);
-            this._icon.remove_effect_by_name(brightName);
+        for (const icon of [this._icon, this._zaiPrefix]) {
+            const hasEffect = icon.get_effect(desatName) !== null;
+
+            if (style === 'monochrome' && !hasEffect) {
+                icon.add_effect(new Clutter.DesaturateEffect({factor: 1.0, name: desatName}));
+                const brightnessEffect = new Clutter.BrightnessContrastEffect({name: brightName});
+                brightnessEffect.set_brightness_full(1, 1, 1);
+                icon.add_effect(brightnessEffect);
+            } else if (style !== 'monochrome' && hasEffect) {
+                icon.remove_effect_by_name(desatName);
+                icon.remove_effect_by_name(brightName);
+            }
         }
     }
 

@@ -30,9 +30,11 @@ const DEFAULT_ACCESS_TOKEN_TTL = 86400;
 // (the seed, never overwritten by us) and the rotating token in `hubstaff-refresh-token`;
 // `_currentRefreshToken` prefers the rotated one and falls back to the seed.
 export class Hubstaff {
-    constructor(settings, getSession) {
+    constructor(settings, getSession, extensionPath) {
         this._settings = settings;
         this._getSession = getSession;
+        this._iconPath = GLib.build_filenamev([
+            extensionPath, 'icons', 'info-center-hubstaff.svg']);
         this._cancellable = null;
         // A token exchange rotates the refresh token server-side and only the
         // response carries its replacement, so it must outlive an overlapping
@@ -65,7 +67,8 @@ export class Hubstaff {
     }
 
     buildMenu(menu) {
-        const totals = buildTotalsSection(menu, 'Hubstaff time — this month');
+        const totals = buildTotalsSection(
+            menu, 'Hubstaff time — this month', this._iconPath);
         this._separator = totals.separator;
         this._item = totals.item;
         this._totalLabel = totals.totalLabel;
