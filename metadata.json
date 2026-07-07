@@ -2,7 +2,7 @@
   "name": "Info Center",
   "description": "Display Claude Code usage in the top panel, and optionally your z.ai GLM Coding Plan usage, your Redmine time logged this month and the issues due today and tomorrow, plus your Hubstaff time tracked this month per project, in the dropdown. This extension uses anthropic.com and z.ai services. This extension is not affiliated, funded, or in any way associated with Claude or z.ai.",
   "uuid": "info-center@muzsij",
-  "shell-version": ["46", "47", "48", "49"],
+  "shell-version": ["46", "47", "48", "49", "50"],
   "url": "https://github.com/muzsij/info-center",
   "settings-schema": "org.gnome.shell.extensions.info-center",
   "version": 10
