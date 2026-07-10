@@ -1,3 +1,5 @@
 *.zip
 schemas/gschemas.compiled
 /.idea/
+/.claude/
+.DS_Store
