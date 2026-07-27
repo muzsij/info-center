@@ -14,6 +14,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {ClaudeUsage} from './lib/services/claudeUsage.js';
 import {ZaiUsage} from './lib/services/zai.js';
 import {Redmine} from './lib/services/redmine.js';
+import {ClickUp} from './lib/services/clickup.js';
 import {Hubstaff} from './lib/services/hubstaff.js';
 
 const InfoCenterIndicator = GObject.registerClass(
@@ -104,6 +105,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
             this._settings, getSession, this._zaiLabel, this._zaiPanelProgressBar,
             this._extensionPath);
         this._redmine = new Redmine(this._settings, getSession, this._extensionPath);
+        this._clickup = new ClickUp(this._settings, getSession, this._extensionPath);
         this._hubstaff = new Hubstaff(this._settings, getSession, this._extensionPath);
 
         // One refresh timer per feature module, each driven by its own
@@ -122,6 +124,11 @@ class InfoCenterIndicator extends PanelMenu.Button {
             redmine: {
                 intervalKey: 'redmine-refresh-interval',
                 module: this._redmine,
+                id: null,
+            },
+            clickup: {
+                intervalKey: 'clickup-refresh-interval',
+                module: this._clickup,
                 id: null,
             },
             hubstaff: {
@@ -149,6 +156,12 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 this._updateDisplayMode();
             } else if (key === 'redmine-refresh-interval') {
                 this._restartTimer('redmine');
+            } else if (key === 'clickup-refresh-interval') {
+                this._restartTimer('clickup');
+            } else if (key === 'clickup-api-token') {
+                // Token added/changed/removed: refetch (the module hides its
+                // sections itself when the token is empty).
+                this._clickup.refresh();
             } else if (key === 'hubstaff-refresh-interval') {
                 this._restartTimer('hubstaff');
             } else if (key === 'hubstaff-personal-access-token') {
@@ -194,7 +207,12 @@ class InfoCenterIndicator extends PanelMenu.Button {
     _createMenu() {
         this._claude.buildMenu(this.menu);
         this._zai.buildMenu(this.menu);
-        this._redmine.buildMenu(this.menu);
+        // The ClickUp task lists slot between the Redmine task lists and the
+        // Redmine monthly time totals, which is why Redmine's menu is built in
+        // two calls.
+        this._redmine.buildTasksMenu(this.menu);
+        this._clickup.buildMenu(this.menu);
+        this._redmine.buildTotalsMenu(this.menu);
         this._hubstaff.buildMenu(this.menu);
 
         const footerSeparator = new PopupMenu.PopupSeparatorMenuItem();
@@ -272,6 +290,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._claude.refresh();
         this._zai.refresh();
         this._redmine.refresh();
+        this._clickup.refresh();
         this._hubstaff.refresh();
     }
 
@@ -350,6 +369,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._claude.destroy();
         this._zai.destroy();
         this._redmine.destroy();
+        this._clickup.destroy();
         this._hubstaff.destroy();
         if (this._session) {
             this._session.abort();

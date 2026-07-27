@@ -78,6 +78,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         this._buildClaudePage(window, settings);
         this._buildZaiPage(window, settings);
         this._buildRedminePage(window, settings);
+        this._buildClickUpPage(window, settings);
         this._buildHubstaffPage(window, settings);
     }
 
@@ -271,7 +272,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
 
         const networkGroup = new Adw.PreferencesGroup({
             title: 'Network',
-            description: 'Proxy used for all outgoing requests (Claude, GLM, Redmine and Hubstaff)',
+            description: 'Proxy used for all outgoing requests (Claude, GLM, Redmine, ClickUp and Hubstaff)',
         });
         page.add(networkGroup);
 
@@ -603,6 +604,47 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
                 fetchAll();
             }
         });
+    }
+
+    _buildClickUpPage(window, settings) {
+        const page = new Adw.PreferencesPage({
+            title: 'ClickUp',
+            icon_name: this._pageIcon('info-center-clickup', 'view-list-bullet-symbolic'),
+        });
+        window.add(page);
+
+        this._buildGeneralGroup(page, settings, 'clickup-refresh-interval',
+            'Configure how ClickUp data is refreshed',
+            'How often to refresh ClickUp data (in seconds)');
+
+        const connectionGroup = new Adw.PreferencesGroup({
+            title: 'Connection',
+            description: 'Show your open ClickUp tasks in Today and Tomorrow sections',
+        });
+        page.add(connectionGroup);
+
+        const tokenRow = new Adw.PasswordEntryRow({
+            title: 'API Token',
+            show_apply_button: true,
+        });
+        tokenRow.set_text(settings.get_string('clickup-api-token'));
+        tokenRow.connect('apply', () => {
+            settings.set_string('clickup-api-token', tokenRow.get_text().trim());
+        });
+        connectionGroup.add(tokenRow);
+
+        const tokenHint = new Gtk.Label({
+            label: 'Find it in ClickUp under Settings → Integrations & ' +
+                'ClickApps → ClickUp API (starts with pk_; leave empty to ' +
+                'disable). Tasks assigned to you in every Workspace the token ' +
+                'can access are shown.',
+            xalign: 0,
+            wrap: true,
+            css_classes: ['dim-label', 'caption'],
+            margin_start: 12,
+            margin_top: 4,
+        });
+        connectionGroup.add(tokenHint);
     }
 
     _buildHubstaffPage(window, settings) {

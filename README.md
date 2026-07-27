@@ -1,7 +1,7 @@
 # Info Center
 ![GNOME Shell 46+](https://img.shields.io/badge/GNOME%20Shell-46%2B-blue)
 
-A GNOME Shell extension that displays your Claude Code API usage in the top panel, and optionally your z.ai GLM Coding Plan usage, Redmine time and tasks, and Hubstaff time tracked this month.
+A GNOME Shell extension that displays your Claude Code API usage in the top panel, and optionally your z.ai GLM Coding Plan usage, Redmine time and tasks, ClickUp tasks, and Hubstaff time tracked this month.
 
 > Private fork of [Haletran/claude-usage-extension](https://github.com/Haletran/claude-usage-extension), rebranded as **Info Center** for further development.
 
@@ -11,6 +11,7 @@ A GNOME Shell extension that displays your Claude Code API usage in the top pane
 - **z.ai GLM Coding Plan usage** *(optional)* - Show your GLM 5-hour and weekly usage next to Claude in the panel
 - **Redmine time tracking** *(optional)* - Show this month's logged hours per project in the dropdown menu, with estimated earnings on hover
 - **Redmine task lists** *(optional)* - Show issues assigned to you that are due today and tomorrow, with optional status filtering, clickable straight to Redmine
+- **ClickUp task lists** *(optional)* - Show open tasks assigned to you that are due today and tomorrow, clickable straight to ClickUp
 - **Hubstaff time tracking** *(optional)* - Show this month's tracked hours per project in the dropdown menu, with estimated earnings on hover
 - **Settings menu** - Change the panel layout, position, refresh intervals, and proxy
 
@@ -58,6 +59,19 @@ Off by default. Open the extension preferences, switch to the **GLM** tab, and
 paste an API key created at [z.ai](https://z.ai/manage-apikey/apikey-list). Once
 set, your GLM 5-hour and weekly usage appears in the panel next to Claude (with its
 own logo, layout, and refresh interval). Clear the key to hide it again.
+
+## ClickUp integration
+
+Off by default. Open the extension preferences and switch to the **ClickUp** tab:
+
+1. Copy your personal **API Token** from ClickUp under *Settings* →
+   *Integrations & ClickApps* → *ClickUp API* (it starts with `pk_`).
+2. Paste the token and click apply.
+
+The dropdown then shows the open tasks assigned to you — across every Workspace
+the token can access — that fall due **today** and **tomorrow** (by their
+start/due date span; tasks without either date are not listed). Each task is a
+link that opens it in ClickUp. Clear the token to hide the sections.
 
 ## Hubstaff integration
 

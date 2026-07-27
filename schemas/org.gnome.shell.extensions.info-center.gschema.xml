@@ -131,6 +131,16 @@
       <summary>Show tasks from all projects</summary>
       <description>When enabled, the Today and Tomorrow task sections show issues from every project assigned to you, ignoring the selected projects. The monthly time totals still follow the selected projects.</description>
     </key>
+    <key name="clickup-refresh-interval" type="i">
+      <default>300</default>
+      <summary>ClickUp refresh interval</summary>
+      <description>How often to refresh ClickUp data in seconds</description>
+    </key>
+    <key name="clickup-api-token" type="s">
+      <default>''</default>
+      <summary>ClickUp personal API token</summary>
+      <description>Personal API token (pk_…) used to authenticate with the ClickUp API, found in ClickUp under Settings → Integrations &amp; ClickApps → ClickUp API. Leave empty to disable.</description>
+    </key>
     <key name="hubstaff-refresh-interval" type="i">
       <default>300</default>
       <summary>Hubstaff refresh interval</summary>
