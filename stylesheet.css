@@ -30,11 +30,29 @@
     margin-left: 4px;
 }
 
+/* The fill color is set by the usage-* class (see the usage level rules below);
+   the white here is only the fallback before the first reading lands. */
 .info-center-panel-progress-bar {
     height: 10px;
     border-radius: 3px;
     transition: width 300ms ease-out;
     background-color: #ffffff;
+}
+
+.info-center-panel-progress-bar.usage-low {
+    background-color: #22c55e;
+}
+
+.info-center-panel-progress-bar.usage-medium {
+    background-color: #eab308;
+}
+
+.info-center-panel-progress-bar.usage-high {
+    background-color: #f97316;
+}
+
+.info-center-panel-progress-bar.usage-critical {
+    background-color: #ef4444;
 }
 
 /* Usage section styles */
