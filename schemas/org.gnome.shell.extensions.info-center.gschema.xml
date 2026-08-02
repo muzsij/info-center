@@ -26,6 +26,36 @@
       <summary>GLM panel display mode</summary>
       <description>How to display GLM usage in the panel, independently of Claude: 'text' for percentage text, 'bar' for a progress bar, or 'both' for both</description>
     </key>
+    <key name="openai-refresh-interval" type="i">
+      <default>300</default>
+      <summary>OpenAI refresh interval</summary>
+      <description>How often to refresh OpenAI (Codex) usage data in seconds</description>
+    </key>
+    <key name="openai-enabled" type="b">
+      <default>false</default>
+      <summary>Show OpenAI usage</summary>
+      <description>When enabled, the OpenAI (Codex) plan usage is read from the Codex CLI's own login (auth.json in CODEX_HOME, by default ~/.codex) and shown in the panel and the dropdown. No API key needed; requires a Codex CLI login.</description>
+    </key>
+    <key name="openai-display-mode" type="s">
+      <default>'text'</default>
+      <summary>OpenAI panel display mode</summary>
+      <description>How to display OpenAI usage in the panel, independently of Claude: 'text' for percentage text, 'bar' for a progress bar, or 'both' for both</description>
+    </key>
+    <key name="openai-compact-view" type="b">
+      <default>false</default>
+      <summary>OpenAI compact dropdown view</summary>
+      <description>When enabled, the OpenAI 5-hour and weekly usage are shown as a single compact block in the dropdown (one "OpenAI" title, each window a progress bar with its percentage and a reset countdown tagged 5 hour / weekly) instead of two separate sections.</description>
+    </key>
+    <key name="openai-notify-reset" type="b">
+      <default>false</default>
+      <summary>Notify on OpenAI 5-hour reset</summary>
+      <description>When enabled, send a desktop notification when the OpenAI 5-hour usage window resets — detected as the usage dropping below the notify threshold after having reached it.</description>
+    </key>
+    <key name="openai-notify-threshold" type="i">
+      <default>80</default>
+      <summary>OpenAI reset notification threshold</summary>
+      <description>Minimum 5-hour usage percentage (0–100) the window must have reached before a reset triggers a notification. Only resets of windows that climbed to at least this level are announced.</description>
+    </key>
     <key name="display-mode" type="s">
       <default>'text'</default>
       <summary>Display mode</summary>

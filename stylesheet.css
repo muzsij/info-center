@@ -21,6 +21,13 @@
     margin-right: 4px;
 }
 
+/* OpenAI logo labelling the Codex usage segment in the panel, same role as the
+   GLM one: it separates the OpenAI number from whatever sits to its left. */
+.info-center-openai-prefix {
+    margin-left: 10px;
+    margin-right: 4px;
+}
+
 /* Panel progress bar */
 .info-center-panel-progress-bg {
     background-color: rgba(255, 255, 255, 0.2);

@@ -1,7 +1,7 @@
 # Info Center
 ![GNOME Shell 46+](https://img.shields.io/badge/GNOME%20Shell-46%2B-blue)
 
-A GNOME Shell extension that displays your Claude Code API usage in the top panel, and optionally your z.ai GLM Coding Plan usage, Redmine time and tasks, ClickUp tasks, and Hubstaff time tracked this month.
+A GNOME Shell extension that displays your Claude Code API usage in the top panel, and optionally your z.ai GLM Coding Plan usage, your OpenAI (Codex) plan usage, Redmine time and tasks, ClickUp tasks, and Hubstaff time tracked this month.
 
 > Private fork of [Haletran/claude-usage-extension](https://github.com/Haletran/claude-usage-extension), rebranded as **Info Center** for further development.
 
@@ -9,6 +9,7 @@ A GNOME Shell extension that displays your Claude Code API usage in the top pane
 
 - **Real-time Claude usage monitoring** - View your 5-hour and 7-day Claude Code usage in the panel, with a reset notification when the 5-hour window rolls over
 - **z.ai GLM Coding Plan usage** *(optional)* - Show your GLM 5-hour and weekly usage next to Claude in the panel
+- **OpenAI (Codex) usage** *(optional)* - Show the 5-hour and weekly usage of your OpenAI plan next to Claude in the panel, read from your Codex CLI login
 - **Redmine time tracking** *(optional)* - Show this month's logged hours per project in the dropdown menu, with estimated earnings on hover
 - **Redmine task lists** *(optional)* - Show issues assigned to you that are due today and tomorrow, with optional status filtering, clickable straight to Redmine
 - **ClickUp task lists** *(optional)* - Show open tasks assigned to you that are due today and tomorrow, clickable straight to ClickUp
@@ -59,6 +60,24 @@ Off by default. Open the extension preferences, switch to the **GLM** tab, and
 paste an API key created at [z.ai](https://z.ai/manage-apikey/apikey-list). Once
 set, your GLM 5-hour and weekly usage appears in the panel next to Claude (with its
 own logo, layout, and refresh interval). Clear the key to hide it again.
+
+## OpenAI (Codex) integration
+
+Off by default, and needs no API key: it reuses the login the
+[Codex CLI](https://developers.openai.com/codex/cli) already stores on this
+machine. Open the extension preferences, switch to the **OpenAI** tab, and turn
+on **Show OpenAI Usage** (run `codex login` first if you have not signed in).
+
+Your plan's 5-hour and weekly usage then appears in the panel next to Claude —
+with its own logo, display mode, compact view, reset notification, and refresh
+interval — and in the dropdown. Only the windows your plan actually reports are
+shown, and each section is labelled from the window length the API returns.
+
+The OAuth token is read from `auth.json` in `CODEX_HOME` (by default `~/.codex`)
+and is only ever **read** — the extension never refreshes or rewrites it, so the
+Codex CLI stays in charge of its own login. If the token has expired, the panel
+shows a dimmed "refreshing" state and picks up the new one shortly after the
+Codex CLI renews it.
 
 ## ClickUp integration
 

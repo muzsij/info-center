@@ -13,6 +13,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {ClaudeUsage} from './lib/services/claudeUsage.js';
 import {ZaiUsage} from './lib/services/zai.js';
+import {OpenAiUsage} from './lib/services/openai.js';
 import {Redmine} from './lib/services/redmine.js';
 import {ClickUp} from './lib/services/clickup.js';
 import {Hubstaff} from './lib/services/hubstaff.js';
@@ -92,6 +93,37 @@ class InfoCenterIndicator extends PanelMenu.Button {
         });
         this._box.add_child(this._zaiLabel);
 
+        // OpenAI (Codex) panel segment, shown after the GLM one when the OpenAI
+        // integration is enabled. Same shape as the GLM segment: its own logo
+        // disambiguates the percentage, and its visibility is governed in
+        // _updateDisplayMode (gated on being enabled).
+        const openaiIconPath = GLib.build_filenamev([
+            this._extensionPath, 'icons', 'info-center-openai.svg']);
+        this._openaiPrefix = new St.Icon({
+            gicon: Gio.icon_new_for_string(openaiIconPath),
+            style_class: 'info-center-openai-prefix',
+            icon_size: 16,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._box.add_child(this._openaiPrefix);
+
+        this._openaiPanelProgressBg = new St.Widget({
+            style_class: 'info-center-panel-progress-bg',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._openaiPanelProgressBar = new St.Widget({
+            style_class: 'info-center-panel-progress-bar',
+        });
+        this._openaiPanelProgressBg.add_child(this._openaiPanelProgressBar);
+        this._box.add_child(this._openaiPanelProgressBg);
+
+        this._openaiLabel = new St.Label({
+            text: '...',
+            y_align: Clutter.ActorAlign.CENTER,
+            style_class: 'info-center-usage-label',
+        });
+        this._box.add_child(this._openaiLabel);
+
         this.add_child(this._box);
 
         // The Claude and Redmine feature modules own their own menu sections and
@@ -104,6 +136,9 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._zai = new ZaiUsage(
             this._settings, getSession, this._zaiLabel, this._zaiPanelProgressBar,
             this._extensionPath);
+        this._openai = new OpenAiUsage(
+            this._settings, getSession, this._openaiLabel,
+            this._openaiPanelProgressBar, this._extensionPath);
         this._redmine = new Redmine(this._settings, getSession, this._extensionPath);
         this._clickup = new ClickUp(this._settings, getSession, this._extensionPath);
         this._hubstaff = new Hubstaff(this._settings, getSession, this._extensionPath);
@@ -119,6 +154,11 @@ class InfoCenterIndicator extends PanelMenu.Button {
             zai: {
                 intervalKey: 'zai-refresh-interval',
                 module: this._zai,
+                id: null,
+            },
+            openai: {
+                intervalKey: 'openai-refresh-interval',
+                module: this._openai,
                 id: null,
             },
             redmine: {
@@ -154,6 +194,13 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 // panel segment's visibility (it hides when no key is set).
                 this._zai.refresh();
                 this._updateDisplayMode();
+            } else if (key === 'openai-refresh-interval') {
+                this._restartTimer('openai');
+            } else if (key === 'openai-enabled') {
+                // Turned on/off: refetch (or blank) and re-evaluate the OpenAI
+                // panel segment's visibility.
+                this._openai.refresh();
+                this._updateDisplayMode();
             } else if (key === 'redmine-refresh-interval') {
                 this._restartTimer('redmine');
             } else if (key === 'clickup-refresh-interval') {
@@ -179,7 +226,8 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 // Same as Hubstaff: earnings derive from the already-fetched
                 // monthly time, so re-render locally instead of refetching.
                 this._redmine.rerender();
-            } else if (key === 'display-mode' || key === 'zai-display-mode') {
+            } else if (key === 'display-mode' || key === 'zai-display-mode' ||
+                       key === 'openai-display-mode') {
                 this._updateDisplayMode();
             } else if (key === 'show-icon') {
                 this._updateIconVisibility();
@@ -207,6 +255,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
     _createMenu() {
         this._claude.buildMenu(this.menu);
         this._zai.buildMenu(this.menu);
+        this._openai.buildMenu(this.menu);
         // The ClickUp task lists slot between the Redmine task lists and the
         // Redmine monthly time totals, which is why Redmine's menu is built in
         // two calls.
@@ -258,6 +307,17 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._zaiPanelProgressBg.visible = zaiOn && (zaiMode === 'bar' || zaiMode === 'both');
         this._zaiLabel.visible = zaiOn && zaiMode !== 'bar';
         this._zaiLabel.set_style(zaiMode === 'both' ? 'margin-left: 6px;' : 'margin-left: 0;');
+
+        // Same treatment for the OpenAI segment: its own display mode, hidden
+        // entirely unless the integration is enabled.
+        const openaiMode = this._settings.get_string('openai-display-mode');
+        const openaiOn = this._openai.isConfigured();
+        this._openaiPrefix.visible = openaiOn;
+        this._openaiPanelProgressBg.visible =
+            openaiOn && (openaiMode === 'bar' || openaiMode === 'both');
+        this._openaiLabel.visible = openaiOn && openaiMode !== 'bar';
+        this._openaiLabel.set_style(
+            openaiMode === 'both' ? 'margin-left: 6px;' : 'margin-left: 0;');
     }
 
     _updateIconVisibility() {
@@ -289,6 +349,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._session = this._createSession();
         this._claude.refresh();
         this._zai.refresh();
+        this._openai.refresh();
         this._redmine.refresh();
         this._clickup.refresh();
         this._hubstaff.refresh();
@@ -318,7 +379,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
         const desatName = 'monochrome-desaturate';
         const brightName = 'monochrome-brightness';
 
-        for (const icon of [this._icon, this._zaiPrefix]) {
+        for (const icon of [this._icon, this._zaiPrefix, this._openaiPrefix]) {
             const hasEffect = icon.get_effect(desatName) !== null;
 
             if (style === 'monochrome' && !hasEffect) {
@@ -368,6 +429,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
         }
         this._claude.destroy();
         this._zai.destroy();
+        this._openai.destroy();
         this._redmine.destroy();
         this._clickup.destroy();
         this._hubstaff.destroy();
@@ -393,7 +455,8 @@ export default class InfoCenterExtension extends Extension {
             // is built once in each module's buildMenu — recreate the whole
             // indicator (like a placement change) so the menu is rebuilt fresh.
             if (key === 'panel-box' || key === 'panel-position' ||
-                key === 'claude-compact-view' || key === 'zai-compact-view') {
+                key === 'claude-compact-view' || key === 'zai-compact-view' ||
+                key === 'openai-compact-view') {
                 this._schedulePlaceIndicator();
             }
         });

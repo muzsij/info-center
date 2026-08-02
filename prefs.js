@@ -77,6 +77,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         this._buildSettingsPage(window, settings);
         this._buildClaudePage(window, settings);
         this._buildZaiPage(window, settings);
+        this._buildOpenAiPage(window, settings);
         this._buildRedminePage(window, settings);
         this._buildClickUpPage(window, settings);
         this._buildHubstaffPage(window, settings);
@@ -272,7 +273,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
 
         const networkGroup = new Adw.PreferencesGroup({
             title: 'Network',
-            description: 'Proxy used for all outgoing requests (Claude, GLM, Redmine, ClickUp and Hubstaff)',
+            description: 'Proxy used for all outgoing requests (Claude, GLM, OpenAI, Redmine, ClickUp and Hubstaff)',
         });
         page.add(networkGroup);
 
@@ -477,6 +478,99 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         dropdownGroup.add(compactRow);
 
         this._buildNotificationsGroup(page, settings, 'zai', 'GLM');
+    }
+
+    _buildOpenAiPage(window, settings) {
+        const page = new Adw.PreferencesPage({
+            title: 'OpenAI',
+            icon_name: this._pageIcon('info-center-openai', 'utilities-system-monitor-symbolic'),
+        });
+        window.add(page);
+
+        this._buildGeneralGroup(page, settings, 'openai-refresh-interval',
+            'Configure how OpenAI (Codex) usage is refreshed',
+            'How often to refresh OpenAI usage data (in seconds)');
+
+        const connectionGroup = new Adw.PreferencesGroup({
+            title: 'Connection',
+            description: 'Show your OpenAI plan usage, read from the Codex CLI login',
+        });
+        page.add(connectionGroup);
+
+        const enabledRow = new Adw.SwitchRow({
+            title: 'Show OpenAI Usage',
+            subtitle: 'Use the Codex CLI login on this machine — no API key needed',
+        });
+        settings.bind(
+            'openai-enabled',
+            enabledRow,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        connectionGroup.add(enabledRow);
+
+        const enabledHint = new Gtk.Label({
+            label: 'Requires a signed-in Codex CLI (run codex login; the token ' +
+                'is read from auth.json in CODEX_HOME, by default ~/.codex). ' +
+                'When on, your 5-hour and weekly usage appears in the panel ' +
+                'next to Claude and in the dropdown. The token is only read — ' +
+                'it is never modified, so the Codex CLI keeps managing it.',
+            xalign: 0,
+            wrap: true,
+            css_classes: ['dim-label', 'caption'],
+            margin_start: 12,
+            margin_top: 4,
+        });
+        connectionGroup.add(enabledHint);
+
+        const displayGroup = new Adw.PreferencesGroup({
+            title: 'Panel Display',
+            description: 'How the OpenAI number is shown in the panel, ' +
+                'independently of Claude',
+        });
+        page.add(displayGroup);
+
+        const displayModeRow = new Adw.ComboRow({
+            title: 'Display Mode',
+            subtitle: 'Show OpenAI usage as text percentage, progress bar, or both',
+        });
+
+        const displayModeModel = new Gtk.StringList();
+        displayModeModel.append('Text (percentage)');
+        displayModeModel.append('Progress Bar');
+        displayModeModel.append('Both');
+        displayModeRow.set_model(displayModeModel);
+
+        const modes = ['text', 'bar', 'both'];
+        const currentMode = settings.get_string('openai-display-mode');
+        displayModeRow.set_selected(Math.max(0, modes.indexOf(currentMode)));
+
+        displayModeRow.connect('notify::selected', () => {
+            settings.set_string('openai-display-mode', modes[displayModeRow.get_selected()]);
+        });
+
+        displayGroup.add(displayModeRow);
+
+        const dropdownGroup = new Adw.PreferencesGroup({
+            title: 'Dropdown',
+            description: 'Configure how OpenAI usage is shown in the dropdown menu',
+        });
+        page.add(dropdownGroup);
+
+        const compactRow = new Adw.SwitchRow({
+            title: 'Compact View',
+            subtitle: 'Show the 5-hour and weekly usage as one compact block ' +
+                'instead of two separate sections',
+        });
+        settings.bind(
+            'openai-compact-view',
+            compactRow,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        dropdownGroup.add(compactRow);
+
+        this._buildNotificationsGroup(page, settings, 'openai', 'OpenAI');
     }
 
     _buildRedminePage(window, settings) {
