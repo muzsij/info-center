@@ -81,6 +81,7 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
         this._buildRedminePage(window, settings);
         this._buildClickUpPage(window, settings);
         this._buildHubstaffPage(window, settings);
+        this._buildGoalPage(window, settings);
     }
 
     // Register the bundled icons/ directory with the display's icon theme so the
@@ -802,6 +803,104 @@ export default class InfoCenterPreferences extends ExtensionPreferences {
 
         this._buildEarningsGroup(page, settings, 'hubstaff',
             'tracked time', 'tracked time');
+    }
+
+    _buildGoalPage(window, settings) {
+        const page = new Adw.PreferencesPage({
+            title: 'Goal',
+            icon_name: 'starred-symbolic',
+        });
+        window.add(page);
+
+        const goalGroup = new Adw.PreferencesGroup({
+            title: 'Monthly Income Goal',
+            description: 'Track whether this month\'s Redmine + Hubstaff earnings ' +
+                'are on pace for your goal',
+        });
+        page.add(goalGroup);
+
+        const goalRow = new Adw.SpinRow({
+            title: 'Monthly Goal',
+            subtitle: 'Target earnings for the month (set 0 to hide the goal)',
+            adjustment: new Gtk.Adjustment({
+                lower: 0,
+                upper: 1000000000,
+                step_increment: 10000,
+                page_increment: 100000,
+                value: settings.get_double('goal-monthly-income'),
+            }),
+        });
+        settings.bind(
+            'goal-monthly-income',
+            goalRow,
+            'value',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        goalGroup.add(goalRow);
+
+        const currencyRow = new Adw.EntryRow({
+            title: 'Currency',
+        });
+        currencyRow.set_text(settings.get_string('goal-currency'));
+        currencyRow.connect('changed', () => {
+            settings.set_string('goal-currency', currencyRow.get_text().trim());
+        });
+        goalGroup.add(currencyRow);
+
+        const decimalsRow = new Adw.SpinRow({
+            title: 'Decimal Places',
+            subtitle: 'How many decimals to round amounts to. Negative rounds ' +
+                'to higher values (e.g. -3 rounds to the nearest 1000)',
+            adjustment: new Gtk.Adjustment({
+                lower: -6,
+                upper: 6,
+                step_increment: 1,
+                page_increment: 1,
+                value: settings.get_int('goal-currency-decimals'),
+            }),
+        });
+        settings.bind(
+            'goal-currency-decimals',
+            decimalsRow,
+            'value',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        goalGroup.add(decimalsRow);
+
+        const toleranceRow = new Adw.SpinRow({
+            title: 'On-Pace Tolerance',
+            subtitle: 'How many percent below or above today\'s pace still ' +
+                'counts as on pace (green)',
+            adjustment: new Gtk.Adjustment({
+                lower: 0,
+                upper: 50,
+                step_increment: 1,
+                page_increment: 5,
+                value: settings.get_int('goal-tolerance'),
+            }),
+        });
+        settings.bind(
+            'goal-tolerance',
+            toleranceRow,
+            'value',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        goalGroup.add(toleranceRow);
+
+        const goalHint = new Gtk.Label({
+            label: 'Earnings come from the hourly rates set on the Redmine and ' +
+                'Hubstaff pages and are summed, so use the same currency there. ' +
+                'The bar\'s center means exactly on pace for today (e.g. a ' +
+                '900 000 goal on day 10 of 30 expects 300 000): yellow and left ' +
+                'of center when behind, green around the center, blue and right ' +
+                'of center when ahead.',
+            xalign: 0,
+            wrap: true,
+            css_classes: ['dim-label', 'caption'],
+            margin_start: 12,
+            margin_top: 4,
+        });
+        goalGroup.add(goalHint);
     }
 
     // GET a Redmine JSON endpoint; calls onResult(error, data) exactly once.

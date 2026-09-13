@@ -147,6 +147,39 @@
     background-color: #ef4444;
 }
 
+/* Monthly income goal pace bar: the fill color (and the pace percentage beside
+   it) follows the goal-* class set in earningsGoal.js; the marker ticks the
+   track's center, which means exactly on pace. */
+.info-center-progress-bar.goal-behind {
+    background-color: #eab308;
+}
+
+.info-center-progress-bar.goal-on-pace {
+    background-color: #22c55e;
+}
+
+.info-center-progress-bar.goal-ahead {
+    background-color: #3b82f6;
+}
+
+.info-center-percent-label.goal-behind {
+    color: #eab308;
+}
+
+.info-center-percent-label.goal-on-pace {
+    color: #22c55e;
+}
+
+.info-center-percent-label.goal-ahead {
+    color: #3b82f6;
+}
+
+.info-center-goal-marker {
+    width: 2px;
+    height: 8px;
+    background-color: rgba(255, 255, 255, 0.8);
+}
+
 /* Compact usage block: the bar row puts the progress bar and its percentage
    side by side (the bg x_expands, pushing the percent to the row's end). */
 .info-center-compact-bar-row {

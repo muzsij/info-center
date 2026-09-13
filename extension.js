@@ -17,6 +17,7 @@ import {OpenAiUsage} from './lib/services/openai.js';
 import {Redmine} from './lib/services/redmine.js';
 import {ClickUp} from './lib/services/clickup.js';
 import {Hubstaff} from './lib/services/hubstaff.js';
+import {EarningsGoal} from './lib/services/earningsGoal.js';
 
 const InfoCenterIndicator = GObject.registerClass(
 class InfoCenterIndicator extends PanelMenu.Button {
@@ -139,9 +140,18 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._openai = new OpenAiUsage(
             this._settings, getSession, this._openaiLabel,
             this._openaiPanelProgressBar, this._extensionPath);
-        this._redmine = new Redmine(this._settings, getSession, this._extensionPath);
+        // The earnings goal sums the Redmine and Hubstaff month earnings, so both
+        // nudge it to re-evaluate whenever their earnings may have changed.
+        const onEarningsChanged = () => this._goal?.update();
+        this._redmine = new Redmine(
+            this._settings, getSession, this._extensionPath, onEarningsChanged);
         this._clickup = new ClickUp(this._settings, getSession, this._extensionPath);
-        this._hubstaff = new Hubstaff(this._settings, getSession, this._extensionPath);
+        this._hubstaff = new Hubstaff(
+            this._settings, getSession, this._extensionPath, onEarningsChanged);
+        this._goal = new EarningsGoal(this._settings, [
+            {name: 'Redmine', module: this._redmine},
+            {name: 'Hubstaff', module: this._hubstaff},
+        ]);
 
         // One refresh timer per feature module, each driven by its own
         // interval key; started/stopped/restarted by name via _startTimer & co.
@@ -221,11 +231,19 @@ class InfoCenterIndicator extends PanelMenu.Button {
                 // Earnings derive from the already-fetched tracked time, so just
                 // recompute and re-render locally — no need to hit the API again.
                 this._hubstaff.rerender();
+                // rerender() is a no-op without cached data, but a rate change
+                // can still switch this source on/off for the earnings goal.
+                this._goal.update();
             } else if (key === 'redmine-hourly-rate' || key === 'redmine-currency' ||
                        key === 'redmine-currency-decimals') {
                 // Same as Hubstaff: earnings derive from the already-fetched
                 // monthly time, so re-render locally instead of refetching.
                 this._redmine.rerender();
+                this._goal.update();
+            } else if (key === 'goal-monthly-income' || key === 'goal-currency' ||
+                       key === 'goal-currency-decimals' || key === 'goal-tolerance') {
+                // Derived from the already-rendered earnings; no fetch needed.
+                this._goal.update();
             } else if (key === 'display-mode' || key === 'zai-display-mode' ||
                        key === 'openai-display-mode') {
                 this._updateDisplayMode();
@@ -263,6 +281,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._clickup.buildMenu(this.menu);
         this._redmine.buildTotalsMenu(this.menu);
         this._hubstaff.buildMenu(this.menu);
+        this._goal.buildMenu(this.menu);
 
         const footerSeparator = new PopupMenu.PopupSeparatorMenuItem();
         footerSeparator.add_style_class_name('info-center-separator');
@@ -433,6 +452,7 @@ class InfoCenterIndicator extends PanelMenu.Button {
         this._redmine.destroy();
         this._clickup.destroy();
         this._hubstaff.destroy();
+        this._goal.destroy();
         if (this._session) {
             this._session.abort();
             this._session = null;

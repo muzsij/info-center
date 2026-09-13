@@ -211,5 +211,25 @@
       <summary>Hubstaff earnings decimal places</summary>
       <description>Number of decimal places to round estimated earnings to. May be negative to round to higher place values (e.g. -2 rounds to the nearest 100).</description>
     </key>
+    <key name="goal-monthly-income" type="d">
+      <default>0.0</default>
+      <summary>Monthly income goal</summary>
+      <description>Target earnings for the month. When set (greater than 0), the dropdown shows a pace bar comparing this month's Redmine + Hubstaff estimated earnings against the share of the goal due by today. Set to 0 to hide it.</description>
+    </key>
+    <key name="goal-currency" type="s">
+      <default>''</default>
+      <summary>Income goal currency label</summary>
+      <description>Currency label appended to the amounts in the monthly goal section (e.g. HUF, EUR, $).</description>
+    </key>
+    <key name="goal-currency-decimals" type="i">
+      <default>0</default>
+      <summary>Income goal decimal places</summary>
+      <description>Number of decimal places to round the monthly goal amounts to. May be negative to round to higher place values (e.g. -3 rounds to the nearest 1000).</description>
+    </key>
+    <key name="goal-tolerance" type="i">
+      <default>5</default>
+      <summary>Income goal on-pace tolerance</summary>
+      <description>How far (in percent) earnings may be below or above the pace for today and still count as on pace (green). Below that the bar turns yellow (behind), above it blue (ahead).</description>
+    </key>
   </schema>
 </schemalist>

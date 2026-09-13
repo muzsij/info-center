@@ -14,6 +14,7 @@ A GNOME Shell extension that displays your Claude Code API usage in the top pane
 - **Redmine task lists** *(optional)* - Show issues assigned to you that are due today and tomorrow, with optional status filtering, clickable straight to Redmine
 - **ClickUp task lists** *(optional)* - Show open tasks assigned to you that are due today and tomorrow, clickable straight to ClickUp
 - **Hubstaff time tracking** *(optional)* - Show this month's tracked hours per project in the dropdown menu, with estimated earnings on hover
+- **Monthly income goal** *(optional)* - Set a monthly target and see a pace bar showing whether this month's Redmine + Hubstaff earnings are behind, on, or ahead of schedule
 - **Settings menu** - Change the panel layout, position, refresh intervals, and proxy
 
 ## Requirements
@@ -110,3 +111,18 @@ For both Redmine and Hubstaff you can enter a manual **hourly rate** and currenc
 in the preferences. Hovering a project row (or the section total) then shows the
 estimated earnings for that project this month. Rates are applied locally and are
 never sent anywhere.
+
+## Monthly income goal
+
+Off by default. On the **Goal** tab, enter your **Monthly Goal** (plus a currency
+label). The dropdown then shows a *Monthly goal* section that sums this month's
+Redmine and Hubstaff estimated earnings (so set an hourly rate for at least one of
+them, in the same currency) and compares it with the part of the goal due by today.
+
+The center of the pace bar means exactly on pace. With a 900 000 goal on day 10 of
+a 30-day month, 300 000 earned is green at the center; 200 000 is yellow, left of
+center (behind); 400 000 is blue, right of center (ahead). The **On-Pace Tolerance**
+sets how far from the pace still counts as green. The section title shows how much of the
+whole monthly goal you have earned, the bar is followed by your pace percentage
+for today, and below it is the day of the month; hover it for the amounts (earned, target for
+today, how far ahead or behind you are, and the projected month-end total).
